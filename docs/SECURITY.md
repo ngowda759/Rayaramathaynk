@@ -71,6 +71,28 @@ Token included in requests
 Server validates token (Supabase Auth Admin `getUser`)
 ```
 
+#### Identity provisioning invariants
+
+Self-provisioning routes (`/api/auth/register`, `/api/auth/me`, `/api/auth/profile`) share one rule,
+enforced by `lib/auth/provisioning.ts` and restated in
+`docs/auth/PHASE-2-IDENTITY-UNIFICATION.md` §3:
+
+- **An email address is never proof of account ownership** — not even a verified one. Verification
+  proves control of the mailbox, not ownership of the temple account behind a `public.users` row.
+- A matching email may only **detect a conflict and refuse** (`409`, neutral message that does not
+  disclose the existing row's role). It may never bind an existing row to a new Auth identity.
+- `role` is always assigned server-side (`devotee` for self-provisioning). No self-provisioning path
+  can grant, inherit, or preserve a privileged role.
+- `/api/auth/register` requires `email_confirmed_at` from `auth.admin.getUserById` before creating a
+  row, and checks it **before** any database read so an unverified caller cannot probe for accounts.
+- Rows are resolved by `auth_user_id` only. `id.eq.<auth uid>` is not an identity match: such a row
+  was never linked.
+- `23505` race recovery returns success **only** for a row demonstrably linked to the caller; an
+  unlinked or foreign row returns `409`. Database errors fail closed.
+
+Reconciling an unlinked row to a real person is an audited administrative act (set-role, staff
+onboarding, or the bootstrap script), never an automatic consequence of a matching email string.
+
 ---
 
 ## Authorization

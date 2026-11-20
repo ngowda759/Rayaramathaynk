@@ -126,6 +126,16 @@ describe("Phase 3.1 — Production Hardening", () => {
         data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "concurrent@example.test" } },
         error: null,
       });
+      mockGetUserById.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: "33333333-3333-3333-3333-333333333333",
+            email: "concurrent@example.test",
+            email_confirmed_at: "2026-01-01T00:00:00Z",
+          },
+        },
+        error: null,
+      });
 
       mockFrom.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
@@ -228,6 +238,16 @@ describe("Phase 3.1 — Production Hardening", () => {
         data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "user@example.test" } },
         error: null,
       });
+      mockGetUserById.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: "33333333-3333-3333-3333-333333333333",
+            email: "user@example.test",
+            email_confirmed_at: "2026-01-01T00:00:00Z",
+          },
+        },
+        error: null,
+      });
 
       mockFrom.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
@@ -265,6 +285,16 @@ describe("Phase 3.1 — Production Hardening", () => {
         data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "user@example.test" } },
         error: null,
       });
+      mockGetUserById.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: "33333333-3333-3333-3333-333333333333",
+            email: "user@example.test",
+            email_confirmed_at: "2026-01-01T00:00:00Z",
+          },
+        },
+        error: null,
+      });
 
       mockFrom.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
@@ -296,9 +326,19 @@ describe("Phase 3.1 — Production Hardening", () => {
       expect(json.error).toMatch(/already belongs to a different identity/i);
     });
 
-    it("returns 500 when updating legacy profile with auth_user_id fails", async () => {
+    it("refuses to link an unlinked row by email and performs no write (S2)", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "legacy@example.test" } },
+        error: null,
+      });
+      mockGetUserById.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: "33333333-3333-3333-3333-333333333333",
+            email: "legacy@example.test",
+            email_confirmed_at: "2026-01-01T00:00:00Z",
+          },
+        },
         error: null,
       });
 
@@ -306,17 +346,9 @@ describe("Phase 3.1 — Production Hardening", () => {
         select: jest.fn().mockReturnValue({
           or: jest.fn().mockResolvedValue({
             data: [
-              { id: "row-legacy", auth_user_id: null, email: "legacy@example.test" },
+              { id: "row-legacy", auth_user_id: null, email: "legacy@example.test", role: "admin" },
             ],
             error: null,
-          }),
-        }),
-      });
-
-      mockFrom.mockReturnValueOnce({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockResolvedValue({
-            error: { message: "Database update error" },
           }),
         }),
       });
@@ -335,14 +367,28 @@ describe("Phase 3.1 — Production Hardening", () => {
       });
 
       const res = await registerHandler(req);
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(409);
       const json = await res.json();
-      expect(json.error).toMatch(/failed to update user profile/i);
+      expect(json.error).toMatch(/cannot be claimed automatically/i);
+      // The neutral message must not disclose the existing row's role.
+      expect(json.error).not.toMatch(/admin/i);
+      // No update/insert may have been issued for the unlinked row.
+      expect(mockFrom).toHaveBeenCalledTimes(1);
     });
 
     it("returns 409 when duplicate conflict race (23505) resolution finds mismatching identity", async () => {
       mockGetUser.mockResolvedValueOnce({
         data: { user: { id: "33333333-3333-3333-3333-333333333333", email: "concurrent@example.test" } },
+        error: null,
+      });
+      mockGetUserById.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: "33333333-3333-3333-3333-333333333333",
+            email: "concurrent@example.test",
+            email_confirmed_at: "2026-01-01T00:00:00Z",
+          },
+        },
         error: null,
       });
 
@@ -391,7 +437,7 @@ describe("Phase 3.1 — Production Hardening", () => {
       const res = await registerHandler(req);
       expect(res.status).toBe(409);
       const json = await res.json();
-      expect(json.error).toMatch(/conflict: user profile already exists with different credentials/i);
+      expect(json.error).toMatch(/cannot be claimed automatically/i);
     });
   });
 
@@ -408,12 +454,19 @@ describe("Phase 3.1 — Production Hardening", () => {
         error: null,
       });
 
-      // First lookup finds nothing
+      // First lookup (by auth_user_id) finds nothing
       mockFrom.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
-          or: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
           }),
+        }),
+      });
+
+      // Email conflict pre-check finds no other row holding this address
+      mockFrom.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          or: jest.fn().mockResolvedValue({ data: [], error: null }),
         }),
       });
 
@@ -429,17 +482,21 @@ describe("Phase 3.1 — Production Hardening", () => {
         }),
       });
 
-      // Re-query finds the concurrently created row
+      // Re-query (by auth_user_id) finds the concurrently created row, owned by this caller
       mockFrom.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
-          or: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
             maybeSingle: jest.fn().mockResolvedValue({
               data: {
                 id: "user-id-from-race",
                 auth_user_id: "44444444-4444-4444-4444-444444444444",
                 email: "me-race@example.test",
+                display_name: "me-race",
+                phone_number: null,
                 role: "devotee",
                 active: true,
+                created_at: "2026-01-01T00:00:00Z",
+                updated_at: "2026-01-01T00:00:00Z",
               },
               error: null,
             }),

@@ -43,7 +43,7 @@ interface AuthContextType {
 
   login: (email: string, password: string) => Promise<void>;
 
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<"provisioned" | "pending">;
 
   logout: () => Promise<void>;
 
@@ -204,8 +204,9 @@ export function AuthProvider({
     await authService.login(email, password);
   }
 
-  async function register(data: RegisterData) {
-    await authService.register(data);
+  async function register(data: RegisterData): Promise<"provisioned" | "pending"> {
+    const result = await authService.register(data);
+    return result.provisioning === "provisioned" ? "provisioned" : "pending";
   }
 
   async function logout() {

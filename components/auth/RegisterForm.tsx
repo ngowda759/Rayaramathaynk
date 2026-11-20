@@ -50,15 +50,19 @@ export default function RegisterForm() {
 
   async function onSubmit(data: RegisterFormValues) {
     try {
-      await registerUser({
+      const outcome = await registerUser({
         name: data.name,
         email: data.email,
         phone: data.phone,
         password: data.password,
       });
 
+      // The profile row is only created once the address is confirmed, so the
+      // message must not promise a finished account when it is still pending.
       toast.success(
-        "Account created. Please verify your email and sign in."
+        outcome === "provisioned"
+          ? "Account created. You can sign in now."
+          : "Account created. Please check your email to verify your address, then sign in."
       );
       router.push("/login");
     } catch (error: any) {
@@ -66,6 +70,12 @@ export default function RegisterForm() {
       const msg = error?.message || "";
       if (code === "auth/email-already-in-use" || code === "user_already_exists" || /already registered|already in use/i.test(msg)) {
         toast.error("This email is already registered.");
+      } else if (/cannot be claimed automatically/i.test(msg)) {
+        // An existing profile owns this address. Registration never links it, so
+        // the person needs the temple office to reconcile the account.
+        toast.error(
+          "An account with this email already exists. Please contact the temple office to access it."
+        );
       } else if (code === "auth/weak-password" || /weak password|at least 6 characters/i.test(msg)) {
         toast.error("Please choose a stronger password.");
       } else {

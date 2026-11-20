@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  EMAIL_CONFLICT_MESSAGE,
+  findEmailConflicts,
+  findOwnedRowAfterConflict,
+  isUniqueViolation,
+} from "@/lib/auth/provisioning";
 import type { UserProfile } from "@/types/user";
 
 // Strict schema: reject any client trying to set privileged fields
@@ -157,12 +163,12 @@ export async function POST(request: NextRequest) {
     const payload = parseResult.data;
 
     const supabase = createAdminClient();
-    const filterQuery = `auth_user_id.eq.${caller.uid},id.eq.${caller.uid}`;
-
+    // Match on `auth_user_id` only — the same rule /api/auth/me applies. A row whose `id` equals
+    // the Auth UID has never been linked, so it is not the caller's row.
     const { data: existingUser, error: checkError } = await supabase
       .from("users")
       .select("id, role, active")
-      .or(filterQuery)
+      .eq("auth_user_id", caller.uid)
       .maybeSingle();
 
     if (checkError) {
@@ -190,6 +196,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Database error" }, { status: 500 });
       }
     } else {
+      // Never adopt or duplicate an existing row for this address; see lib/auth/provisioning.ts.
+      const conflictCheck = await findEmailConflicts(supabase, caller.email, caller.uid);
+      if (!conflictCheck.ok) {
+        console.error("[POST /api/auth/profile] Email conflict check failed");
+        return NextResponse.json({ error: "Database error" }, { status: 500 });
+      }
+      if (conflictCheck.conflicts.length > 0) {
+        return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
+      }
+
       // New profile creation: default to devotee role, active: true, is_approved: false
       const insertData: Record<string, unknown> = {
         ...updateFields,
@@ -205,6 +221,26 @@ export async function POST(request: NextRequest) {
         .insert(insertData);
 
       if (insertError) {
+        // A concurrent insert may have won the race. Only a row owned by this caller is success;
+        // anything else fails closed instead of being adopted.
+        if (isUniqueViolation(insertError)) {
+          const recheck = await findOwnedRowAfterConflict<{ auth_user_id: string | null }>(
+            supabase,
+            caller.uid,
+            "id, auth_user_id"
+          );
+
+          if (!recheck.ok) {
+            console.error("[POST /api/auth/profile] Race recovery lookup failed");
+            return NextResponse.json({ error: "Database error" }, { status: 500 });
+          }
+          if (recheck.row) {
+            return NextResponse.json({ ok: true }, { status: 200 });
+          }
+
+          return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
+        }
+
         console.error("[POST /api/auth/profile] Profile creation error:", insertError.message);
         return NextResponse.json({ error: "Database error" }, { status: 500 });
       }

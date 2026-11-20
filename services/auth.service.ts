@@ -14,6 +14,13 @@ export interface SupabaseAuthResult {
     session: unknown;
   };
   error?: unknown;
+  /**
+   * Outcome of the post-signUp provisioning call. `pending` means the identity
+   * still has to confirm its email, so no profile row exists yet (it is created
+   * by /api/auth/me once the address is verified); `provisioned` means the
+   * devotee row now exists.
+   */
+  provisioning?: "provisioned" | "pending";
 }
 
 class AuthService {
@@ -40,13 +47,27 @@ class AuthService {
       throw error;
     }
 
+    // An identity that has not confirmed its email cannot be provisioned: the
+    // server refuses to create a row until ownership is proven, so calling it
+    // here would only surface an error the person cannot act on. The row is
+    // created later by /api/auth/me once the session is verified.
+    const signedUpUser = data.user as
+      | { id?: string; email_confirmed_at?: string | null; confirmed_at?: string | null }
+      | undefined;
+    const userId = signedUpUser?.id;
+    const confirmedAt = signedUpUser?.email_confirmed_at ?? signedUpUser?.confirmed_at ?? null;
+
+    if (!userId || !confirmedAt) {
+      return { data, error, provisioning: "pending" };
+    }
+
     // Call user self-provisioning endpoint to guarantee public.users row exists
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: (data.user as { id?: string } | undefined)?.id,
+          userId,
           email,
           name,
           phone,
@@ -64,7 +85,7 @@ class AuthService {
       throw err;
     }
 
-    return { data, error };
+    return { data, error, provisioning: "provisioned" };
   }
 
   async login(
