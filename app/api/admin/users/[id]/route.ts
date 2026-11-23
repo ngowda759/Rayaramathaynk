@@ -8,10 +8,10 @@ import { userService } from "@/services/user.server";
  * One directory record, addressed by the id the list returns (`firestore_id` when the
  * row carries one, its primary key otherwise — see `lib/supabase/identifier.ts`).
  *
- * The browser client (`services/user.service`) calls this endpoint for its get/update/
- * delete operations, so the id it holds round-trips here. The record is read and
- * written through the service-role Supabase client only; the guard is the same
- * `requireAdminUser` check the collection route uses.
+ * Read-only (AUTHZ-01). The update and delete verbs were retired because they wrote a
+ * client-supplied `role`/`active` with the service-role client. Role and status changes go
+ * through the staff module (`PUT /api/seva/staff/[id]`), which enforces the DB §3.3 matrix
+ * and records an audit row.
  */
 
 /**
@@ -28,38 +28,5 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error) {
     console.error("[admin/users/:id] GET failed:", error);
     return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
-  }
-}
-
-/**
- * PUT /api/admin/users/:id - Update one user. The id comes from the path.
- */
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
-  if (!auth.ok) return auth.response;
-  const { id } = await params;
-  try {
-    const updates = await request.json();
-    await userService.updateUser(id, updates);
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[admin/users/:id] PUT failed:", error);
-    return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
-  }
-}
-
-/**
- * DELETE /api/admin/users/:id - Delete one user. The id comes from the path.
- */
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
-  if (!auth.ok) return auth.response;
-  const { id } = await params;
-  try {
-    await userService.deleteUser(id);
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[admin/users/:id] DELETE failed:", error);
-    return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
   }
 }

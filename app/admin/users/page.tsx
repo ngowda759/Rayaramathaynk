@@ -101,6 +101,10 @@ function AllAccounts() {
         placeholder="Search users..."
       />
 
+      <p className="text-sm text-stone-600">
+        This list is read-only. To add a person or change a role, use the Staff and roles tab.
+      </p>
+
       {loading ? (
         <div className="rounded-xl border bg-white p-8">
           Loading users...
