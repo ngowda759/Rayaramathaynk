@@ -1,60 +1,57 @@
 import fs from "fs";
 import path from "path";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-const imageDirectory = path.join(process.cwd(), "public", "images", "temple");
-const videoDirectory = path.join(process.cwd(), "public", "videos");
+import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { listLocalAssets, resolveLocalAssetPath } from "@/lib/gallery/local-assets";
 
-function normalizeFilename(filename: string) {
-  return path
-    .basename(filename, path.extname(filename))
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+/**
+ * Local gallery assets under `public/images/temple/` and `public/videos/`.
+ *
+ * Both handlers require a verified admin console session. DELETE additionally
+ * requires a gallery-write role. The containment rules live in
+ * `lib/gallery/local-assets.ts`: they reject traversal, absolute paths,
+ * symlinks and any file outside the two roots.
+ *
+ * GET is admin-only. The only in-repo caller is the admin gallery component, and
+ * the listing names files the server is allowed to delete.
+ */
+
+// Replaced by `requireAdminCapability(request, "gallery.delete")` once the
+// centralized capability model lands; until then the role set is explicit.
+const GALLERY_ADMIN_ROLES: ReadonlySet<string> = new Set(["super_admin", "temple_admin", "admin"]);
+
+function publicRoot(): string {
+  return path.resolve(process.cwd(), "public");
 }
 
-function getLocalAssets(directory: string, allowed: RegExp, prefix: string) {
-  if (!fs.existsSync(directory)) return [];
-
-  return fs
-    .readdirSync(directory)
-    .filter((file) => allowed.test(file))
-    .sort()
-    .map((filename) => ({
-      id: `${prefix}-${filename}`,
-      src: `${prefix}/${filename}`,
-      title: normalizeFilename(filename) || filename,
-      alt: normalizeFilename(filename) || "Local gallery asset",
-    }));
+export async function GET(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+  return NextResponse.json(listLocalAssets(publicRoot()));
 }
 
-export async function GET() {
-  const localImages = getLocalAssets(imageDirectory, /\.(jpe?g|png|webp)$/i, "/images/temple");
-  const localVideos = getLocalAssets(videoDirectory, /\.(mp4|webm|ogg)$/i, "/videos");
-
-  return NextResponse.json({ localImages, localVideos });
-}
-
-export async function DELETE(request: Request) {
-  const body = await request.json();
-  const { src } = body as { src?: string };
-
-  if (!src || typeof src !== "string") {
-    return NextResponse.json({ error: "Invalid src" }, { status: 400 });
+export async function DELETE(request: NextRequest) {
+  const auth = await requireAdminUser(request);
+  if (!auth.ok) return auth.response;
+  if (!GALLERY_ADMIN_ROLES.has(auth.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const normalized = path.posix.normalize(src);
-  if (!normalized.startsWith("/images/temple/") && !normalized.startsWith("/videos/")) {
-    return NextResponse.json({ error: "Unauthorized path" }, { status: 403 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400 });
   }
 
-  const filePath = path.join(process.cwd(), "public", normalized);
-  if (!fs.existsSync(filePath)) {
-    return NextResponse.json({ error: "File not found" }, { status: 404 });
+  const resolved = resolveLocalAssetPath((body as { src?: unknown })?.src, publicRoot());
+  if (!resolved.ok) {
+    return NextResponse.json({ error: resolved.error }, { status: resolved.status });
   }
 
   try {
-    fs.unlinkSync(filePath);
+    fs.unlinkSync(resolved.realPath);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Failed to delete file" }, { status: 500 });
