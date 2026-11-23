@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * service role and returned to the authenticated admin only.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "analytics.read");
   if (!auth.ok) return auth.response;
 
   const days = Number(new URL(request.url).searchParams.get("days") ?? "7");

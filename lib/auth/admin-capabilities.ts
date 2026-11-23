@@ -47,6 +47,7 @@ export const ADMIN_CAPABILITIES = [
   "volunteers.delete",
   "bookings.read",
   "analytics.read",
+  "analytics.write",
   "dashboard.read",
   "content.read",
   "content.write",
@@ -80,6 +81,7 @@ export const ADMIN_CAPABILITIES = [
   "gallery.delete",
   "knowledge.read",
   "knowledge.write",
+  "knowledge.delete",
   "knowledge.approve",
   "knowledge.publish",
   "ai.settings.read",
@@ -102,6 +104,7 @@ const CONTENT_READ: readonly AdminCapability[] = [
   "users.directory.read",
   "bookings.read",
   "analytics.read",
+  "analytics.write",
   "dashboard.read",
   "content.read",
   "homepage.read",
@@ -141,6 +144,7 @@ const BILLING: readonly AdminCapability[] = [
   "donations.read",
   "settings.finance.read",
   "analytics.read",
+  "analytics.write",
   "dashboard.read",
 ];
 

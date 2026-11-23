@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { aaradhaneService } from "@/services/aaradhane.server";
 import type { Aaradhane } from "@/types/aaradhane";
 
 /** Admin aaradhane list and creation. */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "aaradhane.read");
   if (!auth.ok) return auth.response;
   try {
     const data = await aaradhaneService.getAaradhanes();
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "aaradhane.write");
   if (!auth.ok) return auth.response;
   try {
     const body = (await request.json()) as Omit<Aaradhane, "id" | "createdAt" | "createdBy">;

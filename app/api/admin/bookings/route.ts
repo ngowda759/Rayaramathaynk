@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { sevaBookingService } from "@/services/sevaBooking.server";
 
 /** Admin seva booking list. `seva_bookings` is deny-all under RLS. */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "bookings.read");
   if (!auth.ok) return auth.response;
   try {
     return NextResponse.json(await sevaBookingService.getAllBookings());

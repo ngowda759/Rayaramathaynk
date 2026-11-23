@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -15,7 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * knowledge titles are plain text (not a `{en, kn}` map).
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "content.read");
   if (!auth.ok) return auth.response;
 
   try {

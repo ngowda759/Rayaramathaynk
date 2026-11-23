@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import {
   approveTestimonial,
   deleteTestimonial,
@@ -13,7 +13,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "testimonials.read");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   const testimonial = await getTestimonial(id);
@@ -25,7 +25,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "testimonials.write");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
@@ -41,7 +41,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "testimonials.write");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
@@ -59,7 +59,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "testimonials.delete");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {

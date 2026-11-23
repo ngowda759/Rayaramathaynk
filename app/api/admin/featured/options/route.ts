@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -11,7 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * `imageUrl`), sevas use `name`, and knowledge titles are plain text (not `{en, kn}`).
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "featured.read");
   if (!auth.ok) return auth.response;
 
   try {

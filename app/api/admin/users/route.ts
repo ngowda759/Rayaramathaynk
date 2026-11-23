@@ -1,14 +1,14 @@
 // app/api/admin/users/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { userService } from "@/services/user.server";
 
 /**
  * The temple user directory — read-only (AUTHZ-01).
  *
  * This surface used to export POST/PUT/DELETE that wrote a client-supplied `role` (and
- * `active`) through the service-role client, gated only by `requireAdminUser`. Any console
+ * `active`) through the service-role client, gated only by `requireAdminCapability`. Any console
  * role could therefore grant `super_admin` to itself or to another account.
  *
  * Identity and privilege changes belong to the staff module, which checks the DB §3.3
@@ -24,7 +24,7 @@ import { userService } from "@/services/user.server";
  * GET /api/admin/users - List all admin users.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "users.directory.read");
   if (!auth.ok) return auth.response;
   try {
     const users = await userService.getUsers();

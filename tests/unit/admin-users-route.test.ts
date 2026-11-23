@@ -28,8 +28,8 @@ type DbResult = { data: unknown; error: unknown };
 
 const mockRequireAdminUser = jest.fn();
 
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
+jest.mock("@/lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: (...args: unknown[]) => mockRequireAdminUser(...args),
 }));
 
 const mockFrom = jest.fn();

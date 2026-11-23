@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { donationService } from "@/services/donation.server";
 import type { DonationRecord, DonationStatus } from "@/types/donation";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "donations.read");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   const donation = await donationService.getDonationById(id);
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "donations.update");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
@@ -32,7 +32,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "donations.delete");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {

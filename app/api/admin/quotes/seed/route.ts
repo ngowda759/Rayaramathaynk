@@ -5,15 +5,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 // POST /api/admin/quotes/seed - Seed default quotes
 export async function POST(request: NextRequest) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAdminCapability(request, "quotes.write");
+    if (!auth.ok) return auth.response;
     const seeded = await quoteService.seedDefaultQuotes();
 
     return NextResponse.json({

@@ -15,8 +15,8 @@ import { NextRequest } from "next/server";
 jest.mock("server-only", () => ({}), { virtual: true });
 
 const mockRequireAdminUser = jest.fn();
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
+jest.mock("@/lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: (...args: unknown[]) => mockRequireAdminUser(...args),
 }));
 
 const mockGetWithRevision = jest.fn();

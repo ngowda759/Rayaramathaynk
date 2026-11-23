@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { galleryService } from "@/services/gallery.server";
 
 /**
@@ -11,7 +11,7 @@ import { galleryService } from "@/services/gallery.server";
  * Admin-only. There is no Firestore or Firebase Storage path.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "gallery.read");
   if (!auth.ok) return auth.response;
 
   try {

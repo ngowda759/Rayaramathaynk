@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { volunteerService } from "@/services/volunteer.server";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "volunteers.read");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   const volunteer = await volunteerService.getVolunteerById(id);
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "volunteers.write");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
@@ -26,7 +26,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "volunteers.delete");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
