@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import {
   getArticleCommitteeApproval,
   getArticleComments,
@@ -24,7 +24,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.read");
   if (!auth.ok) return auth.response;
 
   try {
@@ -57,7 +57,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.write");
   if (!auth.ok) return auth.response;
 
   try {

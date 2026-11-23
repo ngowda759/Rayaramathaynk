@@ -7,10 +7,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { executeMultiSourceQuery, addToQueryHistory } from "@/services/multi-source-retrieval.service";
 import { MultiSourceQuery } from "@/types/multi-source-retrieval";
 import { Intent } from "@/lib/ai/intent/types";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 export async function POST(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "ai.analytics.read");
   if (!guard.ok) return guard.response;
 
   try {

@@ -3,10 +3,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getWorkflowStatistics } from "@/services/knowledge-workflow.service";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.read");
   if (!auth.ok) return auth.response;
   try {
     const statistics = await getWorkflowStatistics();

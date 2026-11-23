@@ -1,5 +1,5 @@
 // Wiring guard: every protected AI API route must authenticate via the shared
-// `requireRayaAdminUser` helper (Supabase Auth) and must not reintroduce ad-hoc
+// `requireAdminCapability` helper (Supabase Auth) and must not reintroduce ad-hoc
 // checks that return a blanket 401 without diagnostics.
 //
 // Raya AI administration uses Supabase Auth. The temple's other admin pages
@@ -38,11 +38,11 @@ const PROTECTED_ROUTES = [
 ];
 
 describe("protected AI API route authentication wiring", () => {
-  it.each(PROTECTED_ROUTES)("%s uses requireRayaAdminUser", (route) => {
+  it.each(PROTECTED_ROUTES)("%s uses requireAdminCapability", (route) => {
     const fullPath = path.join(process.cwd(), route);
     const source = fs.readFileSync(fullPath, "utf8");
-    expect(source).toContain("requireRayaAdminUser");
-    expect(source).toContain('from "@/lib/auth/raya-admin-auth"');
+    expect(source).toContain("requireAdminCapability");
+    expect(source).toContain('from "@/lib/auth/admin-capabilities"');
     // No hand-rolled unauthorized responses.
     expect(source).not.toMatch(/error: "Unauthorized"/);
     // No Firebase Admin dependency and no Firebase-token guard in the AI path.

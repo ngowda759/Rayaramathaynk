@@ -5,10 +5,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getTempleOverview } from "@/services/multi-source-retrieval.service";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "ai.analytics.read");
   if (!guard.ok) return guard.response;
 
   try {

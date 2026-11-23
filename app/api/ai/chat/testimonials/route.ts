@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { getApprovedTestimonials, getPendingTestimonials } from "@/services/chat.server";
 
 /** AI testimonials. Approved ones are public; the pending list is admin-only. */
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const pending = request.nextUrl.searchParams.get("pending") === "1";
   try {
     if (pending) {
-      const auth = await requireAdminUser(request);
+      const auth = await requireAdminCapability(request, "ai.chat_moderation");
       if (!auth.ok) return auth.response;
       return NextResponse.json(await getPendingTestimonials());
     }

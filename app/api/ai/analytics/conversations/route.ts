@@ -2,13 +2,13 @@
 // Returns chat session counts for the AI dashboard.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "ai.analytics.read");
   if (!guard.ok) return guard.response;
 
   try {

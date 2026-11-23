@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 // Public website pages mapped to categories
 // Note: These categories are derived from the seed files in seed/ai/
@@ -53,7 +53,7 @@ interface CoverageStatus {
 }
 
 export async function GET(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "ai.settings.read");
   if (!guard.ok) return guard.response;
 
   try {
