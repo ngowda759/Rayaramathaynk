@@ -36,6 +36,25 @@ const mockSupabaseAuthAdmin = { createUser: jest.fn(), getUserByEmail: jest.fn()
 type Row = Record<string, unknown>;
 const mockDb: { tables: Record<string, Row[]> } = { tables: {} };
 
+/** A SQL LIKE/ILIKE pattern (`%`, `_`, `\` escape) as a case-insensitive RegExp. */
+function likeToRegExp(pattern: string): RegExp {
+  let source = "^";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern[i];
+    if (char === "\\") {
+      i += 1;
+      source += (pattern[i] ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    } else if (char === "%") {
+      source += ".*";
+    } else if (char === "_") {
+      source += ".";
+    } else {
+      source += char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`${source}$`, "i");
+}
+
 function mockQuery(table: string) {
   const filters: ((row: Row) => boolean)[] = [];
   let sort: { column: string; ascending: boolean } | null = null;
@@ -56,6 +75,15 @@ function mockQuery(table: string) {
       filters.push((row) => row[column] === value);
       return query;
     },
+    is: (column: string, value: unknown) => {
+      filters.push((row) => (row[column] ?? null) === value);
+      return query;
+    },
+    ilike: (column: string, pattern: string) => {
+      const match = likeToRegExp(pattern);
+      filters.push((row) => typeof row[column] === "string" && match.test(row[column] as string));
+      return query;
+    },
     in: (column: string, values: unknown[]) => {
       filters.push((row) => values.includes(row[column]));
       return query;
@@ -69,14 +97,36 @@ function mockQuery(table: string) {
       return query;
     },
     maybeSingle: async () => ({ data: run().data[0] ?? null, error: null }),
-    update: (values: Row) => ({
-      eq: (column: string, value: unknown) => {
+    update: (values: Row) => {
+      const updateFilters: ((row: Row) => boolean)[] = [];
+      let applied: { data: Row[]; error: null } | null = null;
+      const apply = () => {
+        if (applied) return applied;
+        const changed: Row[] = [];
         for (const row of mockDb.tables[table] ?? []) {
-          if (row[column] === value) Object.assign(row, values);
+          if (updateFilters.every((keep) => keep(row))) {
+            Object.assign(row, values);
+            changed.push({ ...row });
+          }
         }
-        return Promise.resolve({ data: null, error: null });
-      },
-    }),
+        applied = { data: changed, error: null };
+        return applied;
+      };
+      const builder = {
+        eq: (column: string, value: unknown) => {
+          updateFilters.push((row) => row[column] === value);
+          return builder;
+        },
+        is: (column: string, value: unknown) => {
+          updateFilters.push((row) => (row[column] ?? null) === value);
+          return builder;
+        },
+        select: (_columns: string) => Promise.resolve(apply()),
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+          Promise.resolve(apply()).then(resolve, reject),
+      };
+      return builder;
+    },
     insert: (values: Row) => {
       const rows = (mockDb.tables[table] ??= []);
       const row = { id: `${table}-${rows.length + 1}`, ...values };
@@ -177,6 +227,7 @@ function staffRow(id: string, authUserId: string | null, no: number, name: strin
 
 function resetFixtures() {
   mockDb.tables = {
+    users: [],
     staff: [
       staffRow(ID.nikhil, "uid-nikhil", 1, "Nikhil N", { invited_at: null }),
       staffRow(ID.prakash, "uid-prakash", 8, "Prakash Rao"),
@@ -695,6 +746,137 @@ describe("POST /api/seva/staff (an email that already has a website account)", (
       code: "partial_failure",
       detail: { done: ["identity", "staff"], failed: "audit" },
     });
+  });
+});
+
+describe("POST /api/seva/staff (a legacy users row with no Auth identity)", () => {
+  const legacy = { fullName: "Lakshmi Narayan", email: "lakshmi.n@example.com", role: "receptionist", viewOnly: false };
+
+  function legacyRow(over: Row = {}): Row {
+    return {
+      id: "legacy-row",
+      email: "lakshmi.n@example.com",
+      auth_user_id: null,
+      role: "devotee",
+      active: true,
+      display_name: "Lakshmi N",
+      ...over,
+    };
+  }
+
+  it("without confirmation answers existing_account and links nothing, before any write", async () => {
+    mockSession.actor = ADMIN;
+    mockDb.tables.users = [legacyRow()];
+
+    const refused = await errorOf(await POST(post(legacy)));
+    expect(refused).toMatchObject({
+      status: 400,
+      code: "validation",
+      detail: {
+        field: "email",
+        reason: "existing_account",
+        currentRole: "devotee",
+        currentlyActive: true,
+        displayName: "Lakshmi N",
+      },
+    });
+    expect(identityWrites()).toBe(0);
+    expect(mockCalls).toEqual(["rpc.seva_next_staff_no"]);
+    expect(mockDb.tables.users[0].auth_user_id).toBeNull();
+  });
+
+  it("with confirmation links the unlinked row by auth_user_id and creates no second row", async () => {
+    mockSession.actor = ADMIN;
+    mockDb.tables.users = [legacyRow()];
+
+    const res = await POST(post({ ...legacy, linkExisting: true }));
+    expect(res.status).toBe(201);
+    expect(mockDb.tables.users).toHaveLength(1);
+    expect(mockDb.tables.users[0]).toMatchObject({ id: "legacy-row", auth_user_id: "uid-lakshmi" });
+    expect(mockIdentity.setAccessProfile).toHaveBeenCalledWith("uid-lakshmi", expect.objectContaining({ role: "receptionist" }));
+  });
+
+  it("never overwrites a row that already belongs to a different sign-in", async () => {
+    mockSession.actor = SUPER;
+    mockDb.tables.users = [legacyRow({ auth_user_id: "uid-someone-else" })];
+
+    for (const linkExisting of [false, true]) {
+      const refused = await errorOf(await POST(post({ ...legacy, linkExisting })));
+      expect(refused).toMatchObject({ status: 400, code: "validation", detail: { field: "email" } });
+      expect(String(refused.detail?.message)).toMatch(/already linked to a different sign-in/);
+    }
+    expect(mockDb.tables.users[0].auth_user_id).toBe("uid-someone-else");
+    expect(identityWrites()).toBe(0);
+    expect(mockRpc).not.toHaveBeenCalledWith("seva_staff_onboard", expect.anything());
+  });
+
+  it("fails closed when more than one unlinked row has the email", async () => {
+    mockSession.actor = SUPER;
+    mockDb.tables.users = [legacyRow({ id: "legacy-a" }), legacyRow({ id: "legacy-b" })];
+
+    const refused = await errorOf(await POST(post({ ...legacy, linkExisting: true })));
+    expect(refused).toMatchObject({ status: 400, code: "validation", detail: { field: "email" } });
+    expect(String(refused.detail?.message)).toMatch(/More than one account/);
+    expect(identityWrites()).toBe(0);
+    expect(mockDb.tables.users.every((row) => row.auth_user_id === null)).toBe(true);
+  });
+
+  it("does not silently select a case/space variant or create a duplicate", async () => {
+    mockSession.actor = ADMIN;
+    mockDb.tables.users = [legacyRow({ email: "Lakshmi.N@Example.com" })];
+
+    for (const linkExisting of [false, true]) {
+      const refused = await errorOf(await POST(post({ ...legacy, linkExisting })));
+      expect(refused).toMatchObject({ status: 400, code: "validation", detail: { field: "email" } });
+      expect(String(refused.detail?.message)).toMatch(/different capitalization or spacing/);
+    }
+    expect(mockDb.tables.users).toHaveLength(1);
+    expect(mockDb.tables.users[0].auth_user_id).toBeNull();
+    expect(identityWrites()).toBe(0);
+  });
+
+  it("a temple admin cannot link a legacy row that holds an admin role or is inactive", async () => {
+    mockSession.actor = ADMIN;
+    mockDb.tables.users = [legacyRow({ role: "super_admin" })];
+    expect(await errorOf(await POST(post({ ...legacy, linkExisting: true })))).toMatchObject({
+      status: 403,
+      code: "forbidden",
+      detail: { reason: "needs_super_admin" },
+    });
+    expect(mockDb.tables.users[0].auth_user_id).toBeNull();
+
+    mockDb.tables.users = [legacyRow({ role: "devotee", active: false })];
+    expect(await errorOf(await POST(post({ ...legacy, linkExisting: true })))).toMatchObject({
+      status: 403,
+      code: "forbidden",
+      detail: { reason: "needs_super_admin" },
+    });
+    expect(identityWrites()).toBe(0);
+  });
+
+  it("keeps the admin authorization gate: a receptionist cannot link a legacy row", async () => {
+    mockSession.actor = RECEPTIONIST;
+    mockDb.tables.users = [legacyRow()];
+
+    expect(await errorOf(await POST(post({ ...legacy, linkExisting: true })))).toMatchObject({
+      status: 403,
+      code: "forbidden",
+    });
+    expect(mockDb.tables.users[0].auth_user_id).toBeNull();
+    expect(identityWrites()).toBe(0);
+  });
+
+  it("leaves a row already owned by the resolved identity untouched and creates no second row", async () => {
+    mockSession.actor = ADMIN;
+    // The Auth login is resolved first; the users row already carries that uid but a different stored email.
+    mockLogins["lakshmi.n@example.com"] = { externalUid: "uid-priya", displayName: "Priya S", emailVerified: true, disabled: false };
+    mockDb.tables.users = [legacyRow({ auth_user_id: "uid-priya", email: "priya.s@example.org" })];
+
+    const res = await POST(post({ ...legacy, linkExisting: true }));
+    expect(res.status).toBe(201);
+    expect(mockIdentity.createLogin).not.toHaveBeenCalled();
+    expect(mockDb.tables.users).toHaveLength(1);
+    expect(mockDb.tables.users[0].auth_user_id).toBe("uid-priya");
   });
 });
 

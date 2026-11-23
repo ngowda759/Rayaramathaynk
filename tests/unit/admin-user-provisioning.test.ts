@@ -23,6 +23,7 @@ const mockGetUserByEmail = jest.fn();
 const mockCreateUser = jest.fn();
 const mockListUsers = jest.fn();
 const mockFrom = jest.fn();
+const mockUsersUpdate = jest.fn();
 
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -78,16 +79,19 @@ describe("Admin User Provisioning Routes", () => {
               }),
             }),
           }),
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
-                  data: { id: "user-1", auth_user_id: "550e8400-e29b-41d4-a716-446655440002" },
-                  error: null,
+          update: (...args: unknown[]) => {
+            mockUsersUpdate(...args);
+            return {
+              eq: jest.fn().mockReturnValue({
+                select: jest.fn().mockReturnValue({
+                  maybeSingle: jest.fn().mockResolvedValue({
+                    data: { id: "user-1", auth_user_id: "550e8400-e29b-41d4-a716-446655440002" },
+                    error: null,
+                  }),
                 }),
               }),
-            }),
-          }),
+            };
+          },
         };
       }
       return {};
@@ -211,6 +215,32 @@ describe("Admin User Provisioning Routes", () => {
         expect.anything(),
         { externalUid: "550e8400-e29b-41d4-a716-446655440002", role: "admin" }
       );
+    });
+
+    it("never writes users.auth_user_id by email when promoting a role", async () => {
+      mockRequireStaffAdmin.mockResolvedValue({
+        ok: true,
+        actor: { staffId: "actor-1", uid: "actor-uid-1", role: "super_admin", viewOnly: false, staffNo: 1, name: "Owner" },
+      });
+      mockGetUserByEmail.mockResolvedValue({
+        data: { user: { id: "550e8400-e29b-41d4-a716-446655440002" } },
+        error: null,
+      });
+      mockSetAccountRole.mockResolvedValue(undefined);
+
+      const req = makeRequest("http://localhost/api/admin/users/set-role", {
+        email: "target@example.com",
+        role: "admin",
+      });
+      const res = await setRolePost(req);
+      expect(res.status).toBe(200);
+      expect((await res.json()).userId).toBe("550e8400-e29b-41d4-a716-446655440002");
+      // The role is applied to the row resolved by auth_user_id; no row is linked or re-pointed by email.
+      expect(mockUsersUpdate).not.toHaveBeenCalled();
+      expect(mockSetAccountRole).toHaveBeenCalledWith(expect.anything(), {
+        externalUid: "550e8400-e29b-41d4-a716-446655440002",
+        role: "admin",
+      });
     });
   });
 });
