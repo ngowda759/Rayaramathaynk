@@ -1,14 +1,14 @@
-import Link from "next/link";
-import { Pencil } from "lucide-react";
-
 import { TempleUser } from "@/types/user";
 import UserRoleBadge from "./UserRoleBadge";
-import DeleteUserDialog from "./DeleteUserDialog";
 
 interface UserTableProps {
   users: TempleUser[];
 }
 
+/**
+ * Read-only account list (AUTHZ-01). Role and status changes live in the Staff and roles
+ * tab, which calls the staff module; this table must not offer edit or delete controls.
+ */
 export default function UserTable({
   users,
 }: UserTableProps) {
@@ -21,7 +21,6 @@ export default function UserTable({
             <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700">Email</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700">Role</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700">Status</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-stone-700">Actions</th>
           </tr>
         </thead>
 
@@ -29,7 +28,7 @@ export default function UserTable({
           {users.length === 0 ? (
             <tr>
               <td
-                colSpan={5}
+                colSpan={4}
                 className="px-4 py-10 text-center text-stone-500"
               >
                 No users found.
@@ -63,25 +62,6 @@ export default function UserTable({
                       Inactive
                     </span>
                   )}
-                </td>
-
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/admin/users/${user.id}/edit`}
-                      className="inline-flex items-center gap-1 rounded-lg bg-orange-100 px-2 py-1 text-xs text-orange-700 hover:bg-orange-200"
-                    >
-                      <Pencil className="h-3 w-3" />
-                      Edit
-                    </Link>
-
-                    {user.id && (
-                      <DeleteUserDialog
-                        id={user.id}
-                        name={user.name}
-                      />
-                    )}
-                  </div>
                 </td>
               </tr>
             ))

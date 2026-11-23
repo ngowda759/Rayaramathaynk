@@ -108,6 +108,3 @@ export interface TempleUser {
 
   updatedAt: TimestampLike;
 }
-
-export type TempleUserCreate = Pick<TempleUser, "name" | "email" | "phone" | "role" | "active">;
-export type TempleUserUpdate = Partial<TempleUserCreate>;

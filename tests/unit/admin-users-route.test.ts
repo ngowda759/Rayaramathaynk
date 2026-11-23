@@ -1,20 +1,25 @@
 /**
  * @jest-environment node
  *
- * Regression coverage for the "All Accounts shows 0 users" defect.
+ * AUTHZ-01 — the admin user directory is read-only.
  *
- * The collection route used to import the BROWSER client (`@/services/user.service`),
- * whose `getUsers()` resolves the relative path `/api/admin/users` through
- * `apiFetch`. On a server runtime that call cannot be parsed, so `GET /api/admin/users`
- * answered 500 and the page rendered an empty list. These tests pin the fix:
+ * `/api/admin/users` and `/api/admin/users/[id]` used to export POST/PUT/DELETE that wrote a
+ * client-supplied `role` (and `active`) through the service-role client, gated only by
+ * `requireAdminUser`. Any console role (`staff`, `office_staff`, `priest`, `billing`,
+ * `temple_admin`, `admin`) could therefore grant `super_admin` to themselves or to another
+ * account, delete another account, or flip its active flag.
  *
- * 1. `GET /api/admin/users` performs NO outbound `fetch` (no self-call / recursion).
- * 2. It reads through the service-role Supabase client (`@/services/user.server`).
- * 3. `requireAdminUser` is still enforced before any data access.
- * 4. The per-id endpoint (`[id]`) drives the same server-side path.
+ * The write verbs are retired. Identity and privilege changes belong to the staff module
+ * (`requireStaffAdmin` + the DB §3.3 matrix + audit) and to the legacy `set-role` /
+ * `create-admin` routes. The legitimate path's matrix — a temple admin cannot grant
+ * `super_admin`, cannot change themself, and only a super admin deletes or deactivates — is
+ * pinned by `tests/unit/seva/permissions.test.ts` and `tests/unit/seva/seva-auth.test.ts`.
+ *
+ * These tests pin the read-only contract and the absence of any client-controlled
+ * privilege write. They exercise the route modules, not the UI.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { NextRequest } from "next/server";
@@ -34,14 +39,25 @@ jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => mockCreateAdminClient(),
 }));
 
-import { GET, POST, PUT, DELETE } from "@/app/api/admin/users/route";
-import {
-  GET as GET_BY_ID,
-  PUT as PUT_BY_ID,
-  DELETE as DELETE_BY_ID,
-} from "@/app/api/admin/users/[id]/route";
+import * as collectionRoute from "@/app/api/admin/users/route";
+import * as itemRoute from "@/app/api/admin/users/[id]/route";
+import { userService as browserUserService } from "@/services/user.service";
+import { userService as serverUserService } from "@/services/user.server";
+
+const { GET } = collectionRoute;
+const { GET: GET_BY_ID } = itemRoute;
+
+const ROOT = process.cwd();
 
 const ADMIN = { uid: "admin-uuid", email: "admin@example.test", role: "super_admin", provider: "supabase" as const };
+
+/** Every role `lib/auth/admin-auth.ts` admits to the console. */
+const CONSOLE_ROLES = ["super_admin", "temple_admin", "admin", "billing", "priest", "staff", "office_staff"] as const;
+
+/** The lower-privileged console roles AUTHZ-01 was exploitable from. */
+const LOWER_ROLES = ["staff", "office_staff", "priest", "billing"] as const;
+
+const WRITE_METHODS = ["POST", "PUT", "PATCH", "DELETE"] as const;
 
 const ROW = {
   id: "11111111-1111-1111-1111-111111111111",
@@ -85,7 +101,6 @@ function createQuery(result: DbResult) {
     calls.push("maybeSingle");
     return result;
   });
-  // Awaiting the builder itself resolves to the result, exactly like postgrest.
   query.then = (resolve: (value: DbResult) => unknown, reject?: (reason: unknown) => unknown) =>
     Promise.resolve(result).then(resolve, reject);
   return { query, calls };
@@ -101,6 +116,20 @@ function request(path: string, init: { method?: string; body?: unknown } = {}) {
   });
 }
 
+/**
+ * What the framework does with a method a route module does not export: it answers 405 and
+ * never calls a handler. Modelled here so a re-added write verb fails the test.
+ */
+function dispatch(
+  routeModule: Record<string, unknown>,
+  method: string,
+  req: NextRequest
+): { status: number; handlerRan: boolean } {
+  const handler = routeModule[method];
+  if (typeof handler !== "function") return { status: 405, handlerRan: false };
+  return { status: 200, handlerRan: true };
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockRequireAdminUser.mockResolvedValue({ ok: true, user: ADMIN });
@@ -111,7 +140,7 @@ afterEach(() => {
   fetchSpy.mockRestore();
 });
 
-describe("GET /api/admin/users", () => {
+describe("GET /api/admin/users (the read path is preserved)", () => {
   it("does not call /api/admin/users recursively (no outbound fetch at all)", async () => {
     const { query } = createQuery({ data: [ROW], error: null });
     mockFrom.mockReturnValue(query);
@@ -166,128 +195,187 @@ describe("GET /api/admin/users", () => {
     await expect(res.json()).resolves.toEqual({ error: "Failed to fetch users" });
     errorSpy.mockRestore();
   });
-});
 
-describe("POST /api/admin/users", () => {
-  it("creates through the service-role path without any outbound fetch", async () => {
-    const { query } = createQuery({ data: { firestore_id: "fs-9", id: "uuid-9" }, error: null });
-    mockFrom.mockReturnValue(query);
-
-    const res = await POST(
-      request("/api/admin/users", {
-        method: "POST",
-        body: { name: "New", email: "new@example.org", phone: "", role: "Volunteer", active: true },
-      })
-    );
-
-    expect(res.status).toBe(201);
-    await expect(res.json()).resolves.toEqual({ id: "fs-9" });
-    expect(mockFrom).toHaveBeenCalledWith("users");
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe("collection PUT/DELETE (body id, kept for compatibility)", () => {
-  it("PUT updates through the service-role path", async () => {
-    const { query } = createQuery({ data: null, error: null });
-    mockFrom.mockReturnValue(query);
-
-    const res = await PUT(request("/api/admin/users", { method: "PUT", body: { id: "fs-1", name: "Renamed" } }));
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ success: true });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("DELETE removes through the service-role path", async () => {
-    const { query } = createQuery({ data: null, error: null });
-    mockFrom.mockReturnValue(query);
-
-    const res = await DELETE(request("/api/admin/users", { method: "DELETE", body: { id: "fs-1" } }));
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ success: true });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe("GET/PUT/DELETE /api/admin/users/[id]", () => {
-  const params = Promise.resolve({ id: "fs-1" });
-
-  it("GET reads one row through the service-role path", async () => {
+  it("reads one row through the per-id route", async () => {
     const { query } = createQuery({ data: ROW, error: null });
     mockFrom.mockReturnValue(query);
 
-    const res = await GET_BY_ID(request("/api/admin/users/fs-1"), { params });
+    const res = await GET_BY_ID(request("/api/admin/users/fs-1"), {
+      params: Promise.resolve({ id: "fs-1" }),
+    });
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual(MAPPED);
     expect(mockFrom).toHaveBeenCalledWith("users");
-    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("GET answers 404 when the row does not exist", async () => {
+  it("answers 404 for a missing row", async () => {
     const { query } = createQuery({ data: null, error: null });
     mockFrom.mockReturnValue(query);
 
-    const res = await GET_BY_ID(request("/api/admin/users/missing"), { params });
+    const res = await GET_BY_ID(request("/api/admin/users/missing"), {
+      params: Promise.resolve({ id: "missing" }),
+    });
 
     expect(res.status).toBe(404);
     await expect(res.json()).resolves.toEqual({ error: "User not found" });
   });
+});
 
-  it("PUT updates one row through the service-role path", async () => {
-    const { query } = createQuery({ data: null, error: null });
-    mockFrom.mockReturnValue(query);
-
-    const res = await PUT_BY_ID(request("/api/admin/users/fs-1", { method: "PUT", body: { role: "Volunteer" } }), {
-      params,
-    });
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ success: true });
-    expect(fetchSpy).not.toHaveBeenCalled();
+describe("AUTHZ-01 — the directory exports no write verb", () => {
+  it("the collection route exports GET only", () => {
+    for (const method of WRITE_METHODS) {
+      expect((collectionRoute as Record<string, unknown>)[method]).toBeUndefined();
+    }
   });
 
-  it("DELETE removes one row through the service-role path", async () => {
-    const { query } = createQuery({ data: null, error: null });
-    mockFrom.mockReturnValue(query);
-
-    const res = await DELETE_BY_ID(request("/api/admin/users/fs-1", { method: "DELETE" }), { params });
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ success: true });
-    expect(fetchSpy).not.toHaveBeenCalled();
+  it("the per-id route exports GET only", () => {
+    for (const method of WRITE_METHODS) {
+      expect((itemRoute as Record<string, unknown>)[method]).toBeUndefined();
+    }
   });
 
-  it("enforces admin authorization on the per-id routes", async () => {
-    const denied = Response.json({ error: "Unauthorized" }, { status: 401 });
-    mockRequireAdminUser.mockResolvedValue({ ok: false, response: denied });
+  it.each(CONSOLE_ROLES)("a %s caller cannot create, update, deactivate or delete", async (role) => {
+    mockRequireAdminUser.mockResolvedValue({ ok: true, user: { ...ADMIN, role } });
+    const body = { role: "super_admin", active: true };
 
-    expect((await GET_BY_ID(request("/api/admin/users/fs-1"), { params })).status).toBe(401);
-    expect((await PUT_BY_ID(request("/api/admin/users/fs-1", { method: "PUT", body: {} }), { params })).status).toBe(401);
-    expect((await DELETE_BY_ID(request("/api/admin/users/fs-1", { method: "DELETE" }), { params })).status).toBe(401);
+    for (const method of WRITE_METHODS) {
+      const collection = dispatch(collectionRoute as unknown as Record<string, unknown>, method, request("/api/admin/users", { method, body }));
+      const item = dispatch(itemRoute as unknown as Record<string, unknown>, method, request("/api/admin/users/fs-1", { method, body }));
+      expect(collection).toEqual({ status: 405, handlerRan: false });
+      expect(item).toEqual({ status: 405, handlerRan: false });
+    }
+
+    // No request body is read and nothing reaches the database.
     expect(mockCreateAdminClient).not.toHaveBeenCalled();
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("the service exposes no mutation method that a handler could call", () => {
+    for (const name of ["addUser", "updateUser", "deleteUser"]) {
+      expect((serverUserService as unknown as Record<string, unknown>)[name]).toBeUndefined();
+      expect((browserUserService as unknown as Record<string, unknown>)[name]).toBeUndefined();
+    }
+  });
+
+  it("the route sources contain no service-role write call", () => {
+    for (const path of ["app/api/admin/users/route.ts", "app/api/admin/users/[id]/route.ts"]) {
+      const source = readFileSync(join(ROOT, path), "utf8");
+      expect(source).not.toMatch(/\.insert\s*\(/);
+      expect(source).not.toMatch(/\.update\s*\(/);
+      expect(source).not.toMatch(/\.delete\s*\(/);
+      expect(source).not.toMatch(/addUser|updateUser|deleteUser/);
+    }
+  });
+});
+
+describe("AUTHZ-01 — self-promotion, cross-user promotion, deactivation and delete", () => {
+  /** The four write attempts AUTHZ-01 covered, as the raw bodies an attacker would send. */
+  const ATTACKS = [
+    { name: "self-promotion to super_admin", method: "PUT", path: "/api/admin/users/self-id", body: { role: "super_admin" } },
+    { name: "cross-user promotion to super_admin", method: "PUT", path: "/api/admin/users/victim-id", body: { role: "super_admin" } },
+    { name: "self-deactivation", method: "PUT", path: "/api/admin/users/self-id", body: { active: false } },
+    { name: "cross-user deactivation", method: "PUT", path: "/api/admin/users/victim-id", body: { active: false } },
+    { name: "delete another user", method: "DELETE", path: "/api/admin/users/victim-id", body: { id: "victim-id" } },
+    { name: "create a super admin", method: "POST", path: "/api/admin/users", body: { email: "new@example.org", role: "super_admin", active: true } },
+  ] as const;
+
+  it.each(LOWER_ROLES)("a %s caller cannot self-promote", async (role) => {
+    mockRequireAdminUser.mockResolvedValue({ ok: true, user: { ...ADMIN, uid: "self-id", role } });
+
+    const attempt = dispatch(
+      itemRoute as unknown as Record<string, unknown>,
+      "PUT",
+      request("/api/admin/users/self-id", { method: "PUT", body: { role: "super_admin" } })
+    );
+
+    expect(attempt).toEqual({ status: 405, handlerRan: false });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it.each(LOWER_ROLES)("a %s caller cannot promote another user", async (role) => {
+    mockRequireAdminUser.mockResolvedValue({ ok: true, user: { ...ADMIN, uid: "caller-id", role } });
+
+    const attempt = dispatch(
+      itemRoute as unknown as Record<string, unknown>,
+      "PUT",
+      request("/api/admin/users/victim-id", { method: "PUT", body: { role: "super_admin" } })
+    );
+
+    expect(attempt).toEqual({ status: 405, handlerRan: false });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it.each(LOWER_ROLES)("a %s caller cannot deactivate or delete a user", async (role) => {
+    mockRequireAdminUser.mockResolvedValue({ ok: true, user: { ...ADMIN, role } });
+
+    const deactivate = dispatch(
+      itemRoute as unknown as Record<string, unknown>,
+      "PUT",
+      request("/api/admin/users/victim-id", { method: "PUT", body: { active: false } })
+    );
+    const remove = dispatch(
+      itemRoute as unknown as Record<string, unknown>,
+      "DELETE",
+      request("/api/admin/users/victim-id", { method: "DELETE" })
+    );
+
+    expect(deactivate).toEqual({ status: 405, handlerRan: false });
+    expect(remove).toEqual({ status: 405, handlerRan: false });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it.each(ATTACKS)("$name is refused with no database access", async ({ method, path, body }) => {
+    mockRequireAdminUser.mockResolvedValue({ ok: true, user: { ...ADMIN, uid: "self-id", role: "staff" } });
+    const target = path === "/api/admin/users" ? collectionRoute : itemRoute;
+
+    const attempt = dispatch(target as unknown as Record<string, unknown>, method, request(path, { method, body }));
+
+    expect(attempt).toEqual({ status: 405, handlerRan: false });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe("AUTHZ-01 — the UI offers no privileged write control", () => {
+  it("the accounts table has no edit link and no delete dialog", () => {
+    const source = readFileSync(join(ROOT, "components/admin/users/UserTable.tsx"), "utf8");
+    expect(source).not.toContain("/edit");
+    expect(source).not.toContain("DeleteUserDialog");
+  });
+
+  it("the retired write components are gone", () => {
+    expect(existsSync(join(ROOT, "components/admin/users/UserForm.tsx"))).toBe(false);
+    expect(existsSync(join(ROOT, "components/admin/users/DeleteUserDialog.tsx"))).toBe(false);
+  });
+
+  it("the edit address redirects to the staff tab instead of rendering a role form", () => {
+    const source = readFileSync(join(ROOT, "app/admin/users/[id]/edit/page.tsx"), "utf8");
+    expect(source).toContain("redirect(");
+    expect(source).not.toContain("UserForm");
+  });
+
+  it("the accounts tab still renders the read-only list", () => {
+    const source = readFileSync(join(ROOT, "app/admin/users/page.tsx"), "utf8");
+    expect(source).toContain("UserTable");
+    expect(source).toContain("userService.getUsers");
   });
 });
 
 describe("route source wiring", () => {
-  const root = process.cwd();
-
   it("collection route imports the server-side service and never the browser client", () => {
-    const source = readFileSync(join(root, "app/api/admin/users/route.ts"), "utf8");
+    const source = readFileSync(join(ROOT, "app/api/admin/users/route.ts"), "utf8");
     expect(source).toContain('from "@/services/user.server"');
     expect(source).not.toContain("@/services/user.service");
   });
 
   it("per-id route imports the server-side service and never the browser client", () => {
-    const source = readFileSync(join(root, "app/api/admin/users/[id]/route.ts"), "utf8");
+    const source = readFileSync(join(ROOT, "app/api/admin/users/[id]/route.ts"), "utf8");
     expect(source).toContain('from "@/services/user.server"');
     expect(source).not.toContain("@/services/user.service");
   });
 
   it("documents the recursion this guards against: the browser client targets the same path", () => {
-    const source = readFileSync(join(root, "services/user.service.ts"), "utf8");
+    const source = readFileSync(join(ROOT, "services/user.service.ts"), "utf8");
     expect(source).toContain('apiFetch<TempleUser[]>("/api/admin/users")');
   });
 });
