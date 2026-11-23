@@ -204,7 +204,7 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
       error: null,
     });
     mockFrom.mockReturnValue({
-      select: () => ({ or: () => ({ maybeSingle: mockMaybeSingle }) }),
+      select: () => ({ eq: () => ({ maybeSingle: mockMaybeSingle }) }),
     });
 
     const profile = await supabaseIdentityAdapter.getAccessProfile(
@@ -265,7 +265,7 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
       error: null,
     });
     mockFrom.mockReturnValue({
-      select: () => ({ or: () => ({ maybeSingle: mockMaybeSingle }) }),
+      select: () => ({ eq: () => ({ maybeSingle: mockMaybeSingle }) }),
     });
 
     const profile = await supabaseIdentityAdapter.getAccessProfile(
@@ -489,7 +489,7 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
       error: { message: "connection timeout" },
     });
     mockFrom.mockReturnValue({
-      select: () => ({ or: () => ({ maybeSingle: mockMaybeSingle }) }),
+      select: () => ({ eq: () => ({ maybeSingle: mockMaybeSingle }) }),
     });
 
     await expect(

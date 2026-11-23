@@ -27,14 +27,14 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
 
   async getAccessProfile(externalUid) {
     const supabase = createAdminClient();
-    // `externalUid` is the Supabase Auth UUID the verified token carries; the profile is matched on `auth_user_id`
-    // (its primary key as a fallback). No Firestore id is consulted.
-    const filterQuery = `auth_user_id.eq.${externalUid},id.eq.${externalUid}`;
-
+    // `externalUid` is the Supabase Auth UUID the verified token carries. The profile is matched on
+    // `auth_user_id` only: `id` is an independent random uuid, so a row whose `id` happens to equal the
+    // Auth UID was never linked, and treating it as the caller's would be an implicit identity link
+    // (the S2 class). This is the same rule `/api/auth/me` and lib/auth/admin-auth.ts apply.
     const { data, error } = await supabase
       .from("users")
       .select("role, active")
-      .or(filterQuery)
+      .eq("auth_user_id", externalUid)
       .maybeSingle();
 
     if (error) {
