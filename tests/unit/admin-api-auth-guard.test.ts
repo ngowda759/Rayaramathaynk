@@ -362,3 +362,150 @@ describe("F-A13: quotes admin routes", () => {
     expect(mockSeedDefaultQuotes).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// F-05: full API authorization census
+//
+// The legacy admin aliases used to rely on the coarse `requireAdminUser` guard.
+// This census proves the whole `app/api` surface is either:
+//   - guarded by a shared authorization guard, or
+//   - an explicit public endpoint, or
+//   - an endpoint that delegates to a shared bearer verifier.
+// Anything else fails the census, so a new unguarded write route cannot slip in.
+// ---------------------------------------------------------------------------
+
+function apiRouteFiles(): string[] {
+  const root = path.join(process.cwd(), "app/api");
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name === "route.ts") found.push(full);
+    }
+  };
+  walk(root);
+  return found.sort();
+}
+
+const API_GUARDS = [
+  ...GUARDS,
+  "verifyBearerIdToken",
+  "resolveVerifiedCaller",
+  "requireCancelRight",
+  "requireSevaActor",
+];
+
+/**
+ * Only the capability-mapped settings write still uses the coarse guard: its GET
+ * moved to `settings.device.read` / `settings.finance.read` / `settings.general.read`,
+ * while PUT keeps the explicit role checks exercised by
+ * `admin-settings-finance-auth.test.ts`.
+ */
+const LEGACY_COARSE_ALLOWLIST = new Set<string>(["app/api/admin/settings/[key]/route.ts PUT"]);
+
+const PUBLIC_ENDPOINTS = new Set<string>([
+  "app/api/aaradhane/[id]/route.ts GET",
+  "app/api/aaradhane/route.ts GET",
+  "app/api/ai/chat/feedback/route.ts POST",
+  "app/api/ai/public-settings/route.ts GET",
+  "app/api/announcements/[id]/route.ts GET",
+  "app/api/announcements/route.ts GET",
+  "app/api/chat/route.ts POST",
+  "app/api/chat/route.ts GET",
+  "app/api/contact/route.ts POST",
+  "app/api/dashboard/daily-spiritual/route.ts GET",
+  "app/api/donations/route.ts POST",
+  "app/api/events/[id]/route.ts GET",
+  "app/api/events/route.ts GET",
+  "app/api/gallery/albums/[id]/route.ts GET",
+  "app/api/gallery/albums/route.ts GET",
+  "app/api/gallery/media/[id]/route.ts GET",
+  "app/api/gallery/media/route.ts GET",
+  "app/api/knowledge/article/[slug]/route.ts GET",
+  "app/api/knowledge/categories/route.ts GET",
+  "app/api/knowledge/route.ts GET",
+  "app/api/knowledge/search/route.ts GET",
+  "app/api/public/homepage/route.ts GET",
+  "app/api/public/pageview/route.ts POST",
+  "app/api/public/settings/[key]/route.ts GET",
+  "app/api/public/stats/route.ts GET",
+  "app/api/quotes/category/[category]/route.ts GET",
+  "app/api/quotes/featured/route.ts GET",
+  "app/api/quotes/festival/[festival]/route.ts GET",
+  "app/api/quotes/preview/route.ts GET",
+  "app/api/quotes/random/route.ts GET",
+  "app/api/quotes/route.ts GET",
+  "app/api/quotes/search/route.ts GET",
+  "app/api/quotes/stats/route.ts GET",
+  "app/api/quotes/tags/route.ts GET",
+  "app/api/quotes/today/route.ts GET",
+  "app/api/recommendations/route.ts GET",
+  "app/api/search/route.ts GET",
+  "app/api/search/suggestions/route.ts GET",
+  "app/api/storage/videos/route.ts GET",
+  "app/api/supabase-check/route.ts GET",
+  "app/api/temple-areas/[id]/route.ts GET",
+  "app/api/temple-areas/route.ts GET",
+  "app/api/testimonials/devotee/route.ts GET",
+  "app/api/testimonials/devotee/route.ts POST",
+  "app/api/testimonials/route.ts POST",
+  "app/api/testimonials/route.ts GET",
+  "app/api/volunteer/route.ts POST",
+]);
+
+/** Endpoints that verify the bearer identity through a shared helper, not inline. */
+const DELEGATING_ENDPOINTS = new Set<string>([
+  "app/api/ai/chat/messages/route.ts GET",
+  "app/api/ai/chat/messages/route.ts POST",
+  "app/api/ai/chat/session/[id]/route.ts GET",
+  "app/api/ai/chat/session/[id]/route.ts PATCH",
+  "app/api/profile/route.ts GET",
+  "app/api/profile/route.ts POST",
+  "app/api/profile/route.ts PUT",
+  "app/api/auth/profile/route.ts PUT",
+]);
+
+describe("F-05: full API authorization census", () => {
+  const files = apiRouteFiles();
+  const unguarded: string[] = [];
+  const coarse: string[] = [];
+
+  for (const file of files) {
+    const rel = path.relative(process.cwd(), file).split(path.sep).join("/");
+    const source = fs.readFileSync(file, "utf8");
+    for (const [method, body] of Object.entries(methodBodies(source))) {
+      const key = `${rel} ${method}`;
+      if (/await\s+requireAdminUser\s*\(/.test(body)) coarse.push(key);
+      if (!API_GUARDS.some((guard) => body.includes(guard))) unguarded.push(key);
+    }
+  }
+
+  it("no API route uses the coarse requireAdminUser guard outside the allow-list", () => {
+    expect(coarse.sort()).toEqual([...LEGACY_COARSE_ALLOWLIST].sort());
+  });
+
+  it("every unguarded method is an explicitly allowed public or delegating endpoint", () => {
+    const unexpected = unguarded.filter(
+      (key) => !PUBLIC_ENDPOINTS.has(key) && !DELEGATING_ENDPOINTS.has(key),
+    );
+    expect(unexpected.sort()).toEqual([]);
+  });
+
+  it("the public/delegating allow-list has no stale entries", () => {
+    const actual = new Set(unguarded);
+    const stale = [...PUBLIC_ENDPOINTS, ...DELEGATING_ENDPOINTS].filter(
+      (key) => !actual.has(key),
+    );
+    expect(stale.sort()).toEqual([]);
+  });
+
+  it("delegating endpoints verify the bearer identity through a shared helper", () => {
+    for (const key of DELEGATING_ENDPOINTS) {
+      const rel = key.replace(/ [A-Z]+$/, "");
+      const source = fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+      expect(source).toMatch(/verifyBearerIdToken|resolveVerifiedCaller/);
+    }
+  });
+});
+

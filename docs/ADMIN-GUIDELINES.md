@@ -364,6 +364,14 @@ exposes `can(capability)` for finer checks. Hiding a control is a usability
 measure only: every privileged API call still returns `401`/`403` when the stored
 role lacks the capability.
 
+Legacy admin aliases are held to the same policy (F-05): the donation and booking
+detail routes, the temple-area writes, and the settings reads use the capability
+that matches the operation. `GET /api/admin/settings/[key]` is per document:
+`device` requires `settings.device.read` (super admin only), `financeSettings`
+requires `settings.finance.read`, and everything else requires
+`settings.general.read`. Do not reintroduce the coarse `requireAdminUser` guard
+on a new route; use `requireAdminCapability`.
+
 ### Permission Check
 
 ```typescript

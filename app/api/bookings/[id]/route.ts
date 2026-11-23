@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 import { allowPublicWrite } from "@/lib/api/public-rate-limit";
 import { bookingAdminUpdateSchema, bookingSelfPaymentSchema } from "@/lib/validation/public-submissions";
@@ -8,20 +8,23 @@ import { parseJsonBody } from "@/lib/validation/http";
 import { sevaBookingService } from "@/services/sevaBooking.server";
 
 /**
- * GET    /api/bookings/[id] - read a booking (its owner, or an admin).
- * PATCH  /api/bookings/[id] - an admin may change status/payment; a devotee may
- *                             only declare a payment reference for their own booking.
- * DELETE /api/bookings/[id] - delete a booking (admin only).
+ * GET    /api/bookings/[id] - read a booking (its owner, or a console role with
+ *                             `bookings.read`).
+ * PATCH  /api/bookings/[id] - a console role with `bookings.update` may change
+ *                             status/payment; a devotee may only declare a payment
+ *                             reference for their own booking.
+ * DELETE /api/bookings/[id] - delete a booking (`bookings.delete`, super admin only).
  *
- * Ownership is checked against the verified token's uid, never a value from the
- * request, so one devotee cannot read, pay for or delete another's booking. A
- * devotee's self-service PATCH cannot set a status or mark a payment completed:
+ * The administrative branch uses the F-04 capability model. The devotee branch is
+ * unchanged: ownership is checked against the verified token's uid, never a value
+ * from the request, so one devotee cannot read, pay for or delete another's booking.
+ * A devotee's self-service PATCH cannot set a status or mark a payment completed:
  * the reference is recorded as *pending verification*, and only an administrator
  * (or a verified gateway callback) can confirm the payment.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const admin = await requireAdminUser(request);
+  const admin = await requireAdminCapability(request, "bookings.read");
   if (!admin.ok) {
     const caller = await verifyBearerIdToken(request);
     if (!caller) return admin.response;
@@ -39,7 +42,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const admin = await requireAdminUser(request);
+  const admin = await requireAdminCapability(request, "bookings.update");
 
   if (admin.ok) {
     if (!allowPublicWrite(request, { scope: "bookings:admin-update", identity: admin.user.uid, limit: 60, windowMs: 60_000 })) {
@@ -89,7 +92,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "bookings.delete");
   if (!auth.ok) return auth.response;
 
   if (!allowPublicWrite(request, { scope: "bookings:delete", identity: auth.user.uid, limit: 60, windowMs: 60_000 })) {

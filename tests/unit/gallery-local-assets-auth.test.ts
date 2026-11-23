@@ -21,12 +21,16 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
-const mockRequireAdminUser = jest.fn();
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
-}));
+const mockVerifyAdminUserResult = jest.fn();
+jest.mock("@/lib/auth/admin-auth", () => {
+  const actual = jest.requireActual("@/lib/auth/admin-auth");
+  return {
+    ...actual,
+    verifyAdminUserResult: (...args: unknown[]) => mockVerifyAdminUserResult(...args),
+  };
+});
 
 import { listLocalAssets, resolveLocalAssetPath } from "@/lib/gallery/local-assets";
 import { DELETE as deleteRoute, GET as getRoute } from "../../app/api/gallery/local-assets/route";
@@ -44,16 +48,19 @@ function writeFile(relative: string, contents = "x"): string {
 }
 
 function authorized(role: string) {
-  mockRequireAdminUser.mockResolvedValue({
+  mockVerifyAdminUserResult.mockResolvedValue({
     ok: true,
+    provider: "supabase",
     user: { uid: "uid-1", email: "admin@example.com", role, provider: "supabase" },
   });
 }
 
 function unauthorized() {
-  mockRequireAdminUser.mockResolvedValue({
+  mockVerifyAdminUserResult.mockResolvedValue({
     ok: false,
-    response: NextResponse.json({ error: "unauthenticated" }, { status: 401 }),
+    reason: "missing_token",
+    status: 401,
+    message: "Missing token",
   });
 }
 
@@ -77,7 +84,7 @@ beforeEach(() => {
   fs.mkdirSync(imagesRoot, { recursive: true });
   fs.mkdirSync(videosRoot, { recursive: true });
   jest.spyOn(process, "cwd").mockReturnValue(tmpRoot);
-  mockRequireAdminUser.mockReset();
+  mockVerifyAdminUserResult.mockReset();
 });
 
 afterEach(() => {
@@ -176,14 +183,27 @@ describe("GET /api/gallery/local-assets", () => {
     expect(response.status).toBe(401);
   });
 
-  test("lists assets for an authorized console role", async () => {
-    writeFile("images/temple/a.jpg");
-    authorized("priest");
-    const response = await getRoute(getRequest());
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as { localImages: { src: string }[] };
-    expect(body.localImages.map((a) => a.src)).toEqual(["/images/temple/a.jpg"]);
-  });
+  test.each(["super_admin", "temple_admin", "admin", "priest", "staff"])(
+    "lists assets for the %s role (gallery.read)",
+    async (role) => {
+      writeFile("images/temple/a.jpg");
+      authorized(role);
+      const response = await getRoute(getRequest());
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { localImages: { src: string }[] };
+      expect(body.localImages.map((a) => a.src)).toEqual(["/images/temple/a.jpg"]);
+    },
+  );
+
+  test.each(["billing", "office_staff"])(
+    "denies the %s role (no gallery.read)",
+    async (role) => {
+      writeFile("images/temple/a.jpg");
+      authorized(role);
+      const response = await getRoute(getRequest());
+      expect(response.status).toBe(403);
+    },
+  );
 });
 
 describe("DELETE /api/gallery/local-assets", () => {
