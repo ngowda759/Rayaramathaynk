@@ -13,10 +13,9 @@ jest.mock("@/lib/supabase/admin", () => ({
 }));
 
 const mockServerGetUser = jest.fn();
+const mockServerCreateClient = jest.fn();
 jest.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({
-    auth: { getUser: (...args: unknown[]) => mockServerGetUser(...args) },
-  }),
+  createClient: (...args: unknown[]) => mockServerCreateClient(...args),
 }));
 
 function makeRequest(authorization?: string): Request {
@@ -28,6 +27,10 @@ function makeRequest(authorization?: string): Request {
 beforeEach(() => {
   jest.clearAllMocks();
   mockServerGetUser.mockReset();
+  mockServerCreateClient.mockReset();
+  mockServerCreateClient.mockResolvedValue({
+    auth: { getUser: (...args: unknown[]) => mockServerGetUser(...args) },
+  });
 });
 
 describe("verifyBearerIdToken", () => {
@@ -120,9 +123,57 @@ describe("resolveVerifiedCaller", () => {
   });
 
   it("returns invalid when there is no bearer token and no cookie session", async () => {
-    mockServerGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: "no session" } });
+    mockServerGetUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: "Auth session missing!", name: "AuthSessionMissingError", status: 400 },
+    });
 
     expect(await resolveVerifiedCaller(makeRequest())).toEqual({ status: "invalid" });
+  });
+
+  it("returns invalid when the cookie store is unavailable outside a request", async () => {
+    mockServerCreateClient.mockRejectedValueOnce(
+      new Error("cookies() was called outside a request scope")
+    );
+
+    expect(await resolveVerifiedCaller(makeRequest())).toEqual({ status: "invalid" });
+  });
+
+  it("returns invalid when the cookie credentials are rejected", async () => {
+    mockServerGetUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: "invalid JWT", status: 401 },
+    });
+
+    expect(await resolveVerifiedCaller(makeRequest())).toEqual({ status: "invalid" });
+  });
+
+  it("returns invalid when the cookie session has no user", async () => {
+    mockServerGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+
+    expect(await resolveVerifiedCaller(makeRequest())).toEqual({ status: "invalid" });
+  });
+
+  it("returns unavailable for a cookie-session Supabase 5xx", async () => {
+    mockServerGetUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { message: "down", status: 503 },
+    });
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await resolveVerifiedCaller(makeRequest())).toEqual({ status: "unavailable" });
+
+    errorSpy.mockRestore();
+  });
+
+  it("returns unavailable when the cookie-session verification call throws", async () => {
+    mockServerGetUser.mockRejectedValueOnce(new Error("fetch failed"));
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await resolveVerifiedCaller(makeRequest())).toEqual({ status: "unavailable" });
+
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("never falls back to the cookie session when a bearer token is present but invalid", async () => {
@@ -131,10 +182,11 @@ describe("resolveVerifiedCaller", () => {
     const result = await resolveVerifiedCaller(makeRequest("Bearer not-a-token"));
 
     expect(result).toEqual({ status: "invalid" });
+    expect(mockServerCreateClient).not.toHaveBeenCalled();
     expect(mockServerGetUser).not.toHaveBeenCalled();
   });
 
-  it("reports a Supabase server error as unavailable", async () => {
+  it("reports a bearer-token Supabase server error as unavailable", async () => {
     mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: "down", status: 503 } });
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
 

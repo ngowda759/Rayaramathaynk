@@ -133,13 +133,20 @@ export async function resolveVerifiedCaller(request: Request): Promise<IdTokenCh
     return checkBearerIdToken(request);
   }
 
+  let supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>;
   try {
     const { createClient } = await import("@/lib/supabase/server");
-    const supabase = await createClient();
-    if (typeof supabase?.auth?.getUser !== "function") {
-      return { status: "invalid" };
-    }
+    supabase = await createClient();
+  } catch {
+    // No cookie store (outside a request) or Supabase not configured: there is no usable sign-in.
+    return { status: "invalid" };
+  }
 
+  if (typeof supabase?.auth?.getUser !== "function") {
+    return { status: "invalid" };
+  }
+
+  try {
     const { data, error } = await supabase.auth.getUser();
     if (error) {
       if (isUnavailableStatus((error as { status?: unknown } | null)?.status)) {
@@ -153,8 +160,13 @@ export async function resolveVerifiedCaller(request: Request): Promise<IdTokenCh
       return { status: "ok", caller: toVerifiedCaller(data.user as SupabaseAuthUserLike) };
     }
     return { status: "invalid" };
-  } catch {
-    // No cookie store (outside a request) or Supabase not configured: there is no usable sign-in.
-    return { status: "invalid" };
+  } catch (error) {
+    // Auth-js returns `AuthSessionMissingError` as a result, so a thrown call is a network or
+    // verification-service failure rather than a missing/rejected session.
+    console.error(
+      "[resolveVerifiedCaller] cookie-session verification unavailable:",
+      error instanceof Error ? error.message : error
+    );
+    return { status: "unavailable" };
   }
 }

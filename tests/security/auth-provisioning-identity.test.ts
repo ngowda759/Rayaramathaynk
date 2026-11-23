@@ -38,8 +38,9 @@ jest.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
+const mockServerCreateClient = jest.fn();
 jest.mock("@/lib/supabase/server", () => ({
-  createClient: jest.fn().mockRejectedValue(new Error("no cookie session in test")),
+  createClient: (...args: unknown[]) => mockServerCreateClient(...args),
 }));
 
 const CALLER_UID = "33333333-3333-3333-3333-333333333333";
@@ -94,6 +95,10 @@ function authedRequest(path: string) {
   });
 }
 
+function anonymousRequest(path: string, init?: RequestInit) {
+  return new NextRequest(`http://localhost${path}`, init);
+}
+
 /** `.select(...).or(...)` returning a fixed row list. */
 function selectOrReturns(data: unknown[] | null, error: unknown = null) {
   return {
@@ -127,6 +132,8 @@ function selectEqMaybeSingle(data: unknown, error: unknown = null) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockServerCreateClient.mockReset();
+  mockServerCreateClient.mockRejectedValue(new Error("no cookie session in test"));
 });
 
 describe("S2 — register never links an existing row by email", () => {
@@ -476,6 +483,89 @@ describe("B3 — verified Supabase identity is required for provisioning", () =>
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
 
     const res = await registerHandler(registerRequest());
+
+    expect(res.status).toBe(503);
+    expect(mockFrom).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+});
+
+describe("cookie-session verification failures never provision", () => {
+  function cookieClient(getUser: jest.Mock) {
+    mockServerCreateClient.mockResolvedValueOnce({ auth: { getUser } });
+  }
+
+  it("an invalid cookie session returns 401 and performs no DB read on /api/auth/me", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "Auth session missing!", name: "AuthSessionMissingError", status: 400 },
+      })
+    );
+
+    const res = await meHandler(anonymousRequest("/api/auth/me"));
+
+    expect(res.status).toBe(401);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("a cookie-session 5xx returns 503 and performs no DB read on /api/auth/me", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "down", status: 503 },
+      })
+    );
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await meHandler(anonymousRequest("/api/auth/me"));
+
+    expect(res.status).toBe(503);
+    expect(mockFrom).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("a cookie-session verification exception returns 503 and performs no DB write on register", async () => {
+    cookieClient(jest.fn().mockRejectedValueOnce(new Error("fetch failed")));
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await registerHandler(unauthenticatedRegisterRequest());
+
+    expect(res.status).toBe(503);
+    expect(mockFrom).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("an invalid cookie session returns 401 and performs no DB write on register", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "invalid JWT", status: 401 },
+      })
+    );
+
+    const res = await registerHandler(unauthenticatedRegisterRequest());
+
+    expect(res.status).toBe(401);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("a cookie-session 5xx returns 503 and performs no DB write on profile POST", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "down", status: 503 },
+      })
+    );
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await profileHandler(
+      anonymousRequest("/api/auth/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      })
+    );
 
     expect(res.status).toBe(503);
     expect(mockFrom).not.toHaveBeenCalled();
