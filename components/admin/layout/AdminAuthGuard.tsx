@@ -93,7 +93,17 @@ export default function AdminAuthGuard({
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { user, loading, canAccessAdmin, sevaRole } = useAuth();
+  const {
+    user,
+    loading,
+    canAccessAdmin,
+    canAccessSettings,
+    canAccessFinance,
+    canManageUsers,
+    canAccessBilling,
+    canAccessAdministration,
+    sevaRole,
+  } = useAuth();
   // Raya AI pages authenticate with Supabase Auth. A Supabase session on
   // /admin/ai/* must satisfy this guard so the Raya AI console is reachable.
   // Every other /admin/** path is unchanged: it still requires the Supabase
@@ -174,11 +184,19 @@ export default function AdminAuthGuard({
         hasPermission = canAccessAdmin;
         break;
       case "settings":
+        hasPermission = canAccessSettings;
+        break;
       case "finance":
+        hasPermission = canAccessFinance;
+        break;
       case "users":
+        hasPermission = canManageUsers;
+        break;
       case "billing":
+        hasPermission = canAccessBilling;
+        break;
       case "administration":
-        hasPermission = canAccessAdmin;
+        hasPermission = canAccessAdministration;
         break;
       case "sevaCounter":
       case "sevaPrasadam":
@@ -204,6 +222,10 @@ export function withPermission<P extends object>(
   requiredPermission: Permission
 ) {
   return function PermissionWrapper(props: P) {
-    return <WrappedComponent {...props} />;
+    return (
+      <AdminAuthGuard requiredPermission={requiredPermission}>
+        <WrappedComponent {...props} />
+      </AdminAuthGuard>
+    );
   };
 }

@@ -105,6 +105,8 @@ Retrieves all images and videos from local `public/images/temple` and `public/vi
 
 **Endpoint:** `GET /api/gallery/local-assets`
 
+**Authorization:** admin session required (any console role). Anonymous → 401.
+
 **Response (Success - 200):**
 ```json
 {
@@ -133,6 +135,8 @@ Retrieves all images and videos from local `public/images/temple` and `public/vi
 Deletes a file from the local filesystem.
 
 **Endpoint:** `DELETE /api/gallery/local-assets`
+
+**Authorization:** `super_admin`, `temple_admin`, or the legacy `admin` role. Anonymous → 401; any other role → 403. The path must resolve inside `public/images/temple` or `public/videos`; traversal, absolute paths, symlinks and other file types are refused.
 
 **Request Body:**
 ```json
@@ -182,12 +186,14 @@ curl -X POST https://rayaramathaynk.vercel.app/api/admin/users/set-role \
 
 ### Get Gallery Assets with cURL
 ```bash
-curl https://rayaramathaynk.vercel.app/api/gallery/local-assets
+curl https://rayaramathaynk.vercel.app/api/gallery/local-assets \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"
 ```
 
 ### Delete Gallery Asset with cURL
 ```bash
 curl -X DELETE https://rayaramathaynk.vercel.app/api/gallery/local-assets \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"src":"/images/temple/temple1.jpg"}'
 ```
@@ -196,6 +202,7 @@ curl -X DELETE https://rayaramathaynk.vercel.app/api/gallery/local-assets \
 
 ## Notes
 
+- Admin endpoints return `401` when unauthenticated and `403` (`reason: "insufficient_capability"`) when the stored role lacks the operation's capability. See `docs/SECURITY.md` for the capability matrix.
 - All admin endpoints require appropriate authentication/authorization on the client side
 - User must have logged in at least once before their role can be set
 - Gallery delete is restricted to `/images/temple/` and `/videos/` directories only

@@ -342,6 +342,28 @@ const formSchema = z.object({
 | Settings | Full | Edit | View | None | None |
 | AI Settings | Full | Full | View | None | None |
 
+`billing` is finance-read only and never inherits general admin writes.
+`office_staff` is deny-by-default for every privileged module.
+
+### Server-side capabilities (F-04)
+
+The API is the authority. `lib/auth/admin-capability-policy.ts` holds the
+role → capability map and `lib/auth/admin-capabilities.ts` enforces it with
+`requireAdminCapability(request, capability)`. The admin UI derives its flags from
+the same policy (`deriveAdminPermissions` in `context/AuthContext.tsx`):
+
+- `canAccessAdmin` — the role is a known console role.
+- `canAccessSettings` — `settings.general.read`.
+- `canAccessFinance` / `canAccessBilling` — `settings.finance.read`.
+- `canManageUsers` — `users.create`.
+- `canAccessAdministration` — `administration.revalidate`.
+
+`AdminAuthGuard` uses these flags for its `requiredPermission` prop
+(`settings`, `finance`, `users`, `billing`, `administration`). The context also
+exposes `can(capability)` for finer checks. Hiding a control is a usability
+measure only: every privileged API call still returns `401`/`403` when the stored
+role lacks the capability.
+
 ### Permission Check
 
 ```typescript

@@ -173,6 +173,62 @@ type UserRole =
 | View | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Edit | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 
+### Server-side capability model (F-04)
+
+Authorization is enforced per operation, not per "is an admin" check.
+
+- `lib/auth/admin-capability-policy.ts` holds the role → capability map. It has no
+  `server-only` imports, so the admin UI derives its navigation flags from the same
+  map; the browser never decides access.
+- `lib/auth/admin-capabilities.ts` exposes `requireAdminCapability(request, capability)`.
+  It verifies the Supabase identity through `verifyAdminUserResult` (Supabase Auth →
+  `public.users` by `auth_user_id`, `active !== false`, allow-listed role) and then
+  checks the stored role's capability.
+- Status codes: `401` unauthenticated, `403` inactive/unknown role or missing
+  capability (`reason: "insufficient_capability"`), `503` when auth infrastructure
+  is unavailable. A role, uid, or email supplied in the request body or headers is
+  never trusted.
+
+| Capability group | super_admin | temple_admin / admin | billing | priest | staff | office_staff |
+|---|---|---|---|---|---|---|
+| Users: directory read | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Users: create / assign role | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Users: delete | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Settings: general read | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Settings: general write | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Settings: finance read | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Settings: finance / device write | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Donations: read | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Donations: update | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Donations / members / volunteers: delete | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| AI settings: read | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| AI settings: write | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| AI knowledge import | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Knowledge: read | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Knowledge: write / delete / approve | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Events: read | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Events: write | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Events: delete | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Gallery: read | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Gallery: write / delete | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Administration: revalidate / seed AI settings | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+`billing` is finance-read only; it never inherits general admin writes.
+`office_staff` is deny-by-default for every privileged operation. Unmapped roles deny.
+
+Seva operations are unchanged: `/api/seva/**` keeps its own operation matrix in
+`lib/seva/permissions.ts` and `lib/seva/server/auth.ts`.
+
+#### Intentional public exceptions
+
+- `GET /api/events`, `/api/announcements`, `/api/gallery/albums`, `/api/gallery/media`
+  are public website reads; their writes are capability-gated.
+- `POST /api/volunteer` is the public application form; `GET /api/volunteer` is
+  admin-only (`volunteers.read`).
+- `/api/donations`, `/api/bookings`, `/api/profile/*` and `/api/ai/chat/*` keep their
+  verified-token/ownership checks; they are not admin-console routes.
+- `/api/public/**` is public by design and projects only public fields.
+
 ### Authorization Middleware
 
 ```typescript
