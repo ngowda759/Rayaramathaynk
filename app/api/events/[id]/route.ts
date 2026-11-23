@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { allowPublicWrite } from "@/lib/api/public-rate-limit";
 import { eventUpdateSchema } from "@/lib/validation/public-submissions";
 import { parseJsonBody } from "@/lib/validation/http";
@@ -37,7 +37,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "events.write");
   if (!auth.ok) return auth.response;
 
   if (!allowPublicWrite(request, { scope: "events:update", identity: auth.user.uid, limit: 60, windowMs: 60_000 })) {
@@ -62,7 +62,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "events.delete");
   if (!auth.ok) return auth.response;
 
   if (!allowPublicWrite(request, { scope: "events:delete", identity: auth.user.uid, limit: 60, windowMs: 60_000 })) {

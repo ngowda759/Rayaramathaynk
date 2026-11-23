@@ -32,6 +32,9 @@ const mockRequireAdminUser = jest.fn();
 jest.mock("@/lib/auth/admin-auth", () => ({
   requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
 }));
+jest.mock("@/lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: (...args: unknown[]) => mockRequireAdminUser(...args),
+}));
 
 const mockVerifyBearerIdToken = jest.fn();
 jest.mock("@/lib/auth/verify-id-token", () => ({
@@ -205,7 +208,7 @@ const PUBLIC_READ_EXCEPTIONS = new Set([
   "app/api/testimonials/devotee/route.ts GET",
 ]);
 
-const AUTH_GUARDS = ["requireAdminUser", "verifyBearerIdToken", "callerUid"];
+const AUTH_GUARDS = ["requireAdminUser", "requireAdminCapability", "verifyBearerIdToken", "callerUid"];
 
 /** Methods whose request carries a body that must be validated. */
 const BODY_METHODS = new Set(["POST", "PUT", "PATCH"]);

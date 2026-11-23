@@ -9,11 +9,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 // POST /api/revalidate - Revalidate specified paths
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "administration.revalidate");
   if (!auth.ok) return auth.response;
 
   try {

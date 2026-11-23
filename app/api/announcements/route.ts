@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { announcementService } from "@/services/announcement.server";
 
 /**
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "announcements.write");
   if (!auth.ok) return auth.response;
   try {
     const body = await request.json();

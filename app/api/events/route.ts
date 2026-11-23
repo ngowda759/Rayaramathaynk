@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { allowPublicWrite } from "@/lib/api/public-rate-limit";
 import { eventCreateSchema } from "@/lib/validation/public-submissions";
 import { parseJsonBody } from "@/lib/validation/http";
@@ -25,7 +25,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "events.write");
   if (!auth.ok) return auth.response;
 
   if (!allowPublicWrite(request, { scope: "events:create", identity: auth.user.uid, limit: 30, windowMs: 60_000 })) {
