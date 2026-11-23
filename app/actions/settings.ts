@@ -5,6 +5,7 @@ import { SiteSettingsPayload } from "@/types/settings";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
 import { verifyAdminUserResult } from "@/lib/auth/admin-auth";
+import { adminCan } from "@/lib/auth/admin-capabilities";
 import { z } from "zod";
 
 const settingsSchema = z.object({
@@ -31,7 +32,7 @@ async function verifyAdminForAction(): Promise<boolean> {
   const headersList = await headers();
   const req = new NextRequest("http://localhost", { headers: headersList });
   const result = await verifyAdminUserResult(req);
-  return result.ok;
+  return result.ok && adminCan(result.user.role, "settings.general.write");
 }
 
 export async function createSettingsAction(payload: SiteSettingsPayload): Promise<string> {

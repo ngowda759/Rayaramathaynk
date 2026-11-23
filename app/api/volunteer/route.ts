@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { getVolunteerRequests, submitVolunteerRequest } from "@/services/chat.server";
 
 export async function POST(request: NextRequest) {
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   // The volunteer request list carries personal contact details, so it is admin-only.
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "volunteers.read");
   if (!auth.ok) return auth.response;
   try {
     const requests = await getVolunteerRequests();

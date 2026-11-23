@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { galleryService } from "@/services/gallery.server";
 
 export async function GET(
@@ -17,7 +17,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "gallery.write");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
@@ -33,7 +33,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "gallery.delete");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {

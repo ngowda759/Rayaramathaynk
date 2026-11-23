@@ -89,7 +89,7 @@ describe("H-1/H-2/M-1: previously-open routes now import an admin guard", () => 
 
   it.each(GUARDED)("%s references a shared authorization guard", (rel) => {
     const source = fs.readFileSync(path.join(ROOT, rel), "utf8");
-    expect(source).toMatch(/requireAdminUser|verifyBearerIdToken/);
+    expect(source).toMatch(/requireAdminUser|requireAdminCapability|verifyBearerIdToken/);
   });
 });
 
@@ -98,8 +98,8 @@ describe("H-1/H-2/M-1: previously-open routes now import an admin guard", () => 
 // ---------------------------------------------------------------------------
 
 const mockRequireAdminUser = jest.fn();
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
+jest.mock("@/lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: (...args: unknown[]) => mockRequireAdminUser(...args),
 }));
 
 const mockVerifyBearerIdToken = jest.fn();

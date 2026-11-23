@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { storageService, ReportFileType } from "@/services/storage.service";
 
 export const runtime = 'nodejs';
@@ -26,7 +26,7 @@ interface SaveReportRequest {
  * }
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "reports.write");
   if (!auth.ok) return auth.response;
 
   try {
