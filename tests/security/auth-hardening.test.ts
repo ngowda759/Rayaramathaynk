@@ -52,12 +52,7 @@ describe("Phase 3.1 — Production Hardening", () => {
   });
 
   describe("1. Registration API Security (/api/auth/register)", () => {
-    it("rejects unauthenticated registration with non-existent Supabase userId", async () => {
-      mockGetUserById.mockResolvedValueOnce({
-        data: null,
-        error: { message: "User not found" },
-      });
-
+    it("rejects unauthenticated registration even with a valid userId and email", async () => {
       const req = new NextRequest("http://localhost/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,17 +64,13 @@ describe("Phase 3.1 — Production Hardening", () => {
       });
 
       const res = await registerHandler(req);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
       const json = await res.json();
-      expect(json.error).toMatch(/does not exist in authentication provider/i);
+      expect(json.error).toMatch(/unauthorized/i);
+      expect(mockFrom).not.toHaveBeenCalled();
     });
 
-    it("rejects unauthenticated registration when email does not match Supabase Auth account", async () => {
-      mockGetUserById.mockResolvedValueOnce({
-        data: { user: { id: "11111111-1111-1111-1111-111111111111", email: "actual@example.test" } },
-        error: null,
-      });
-
+    it("rejects an unauthenticated request whose body email differs from any account", async () => {
       const req = new NextRequest("http://localhost/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,9 +82,10 @@ describe("Phase 3.1 — Production Hardening", () => {
       });
 
       const res = await registerHandler(req);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(401);
       const json = await res.json();
-      expect(json.error).toMatch(/does not match registered authentication account/i);
+      expect(json.error).toMatch(/unauthorized/i);
+      expect(mockFrom).not.toHaveBeenCalled();
     });
 
     it("rejects authenticated registration when token UID does not match payload userId", async () => {
@@ -187,14 +179,18 @@ describe("Phase 3.1 — Production Hardening", () => {
       expect(json.message).toMatch(/already provisioned/i);
     });
 
-    it("fails closed (500) when unauthenticated and Supabase Auth Admin lookup service is unavailable", async () => {
+    it("fails closed (500) when the authenticated Supabase Auth Admin lookup is unavailable", async () => {
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: "11111111-1111-1111-1111-111111111111", email: "devotee@example.test" } },
+        error: null,
+      });
       mockGetUserById.mockImplementationOnce(() => {
         throw new Error("Service down");
       });
 
       const req = new NextRequest("http://localhost/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
         body: JSON.stringify({
           userId: "11111111-1111-1111-1111-111111111111",
           email: "devotee@example.test",
@@ -450,7 +446,13 @@ describe("Phase 3.1 — Production Hardening", () => {
 
     it("recovers from concurrent insert race (23505) by re-querying existing profile", async () => {
       mockGetUser.mockResolvedValueOnce({
-        data: { user: { id: "44444444-4444-4444-4444-444444444444", email: "me-race@example.test" } },
+        data: {
+          user: {
+            id: "44444444-4444-4444-4444-444444444444",
+            email: "me-race@example.test",
+            email_confirmed_at: "2026-01-01T00:00:00Z",
+          },
+        },
         error: null,
       });
 

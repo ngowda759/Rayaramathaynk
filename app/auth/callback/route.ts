@@ -132,9 +132,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const outcome = await provisionDevoteeRow<{ auth_user_id: string | null }>(admin, {
       uid: sessionUser.id,
       email: sessionUser.email ?? null,
+      emailConfirmedAt: sessionUser.email_confirmed_at ?? null,
       displayName: displayNameFor(sessionUser),
       columns: "id, auth_user_id",
     });
+
+    if (outcome.status === "unverified") {
+      console.warn("[auth/callback] Identity lost its confirmed email; not provisioning");
+      return failure(origin, "provisioning_failed", next);
+    }
 
     if (outcome.status === "conflict") {
       // The address belongs to an unlinked or foreign-owned row. Nothing was written; the person is

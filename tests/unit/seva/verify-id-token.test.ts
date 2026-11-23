@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
+import { resolveVerifiedCaller, verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 
 jest.mock("server-only", () => ({}), { virtual: true });
 
@@ -9,6 +9,13 @@ const mockGetUser = jest.fn();
 jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     auth: { getUser: (...args: unknown[]) => mockGetUser(...args) },
+  }),
+}));
+
+const mockServerGetUser = jest.fn();
+jest.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({
+    auth: { getUser: (...args: unknown[]) => mockServerGetUser(...args) },
   }),
 }));
 
@@ -20,6 +27,7 @@ function makeRequest(authorization?: string): Request {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockServerGetUser.mockReset();
 });
 
 describe("verifyBearerIdToken", () => {
@@ -52,12 +60,86 @@ describe("verifyBearerIdToken", () => {
     expect(await verifyBearerIdToken(makeRequest("Bearer good-token"))).toEqual({
       uid: "u1",
       email: "devotee@example.org",
+      emailConfirmedAt: null,
     });
     expect(mockGetUser).toHaveBeenCalledWith("good-token");
   });
 
+  it("returns the Supabase confirmation timestamp when present", async () => {
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "u3",
+          email: "confirmed@example.org",
+          email_confirmed_at: "2026-01-01T00:00:00Z",
+        },
+      },
+      error: null,
+    });
+
+    expect(await verifyBearerIdToken(makeRequest("Bearer good-token"))).toEqual({
+      uid: "u3",
+      email: "confirmed@example.org",
+      emailConfirmedAt: "2026-01-01T00:00:00Z",
+    });
+  });
+
   it("returns a null email when the token carries none", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "u2", email: null } }, error: null });
-    expect(await verifyBearerIdToken(makeRequest("Bearer phone-only"))).toEqual({ uid: "u2", email: null });
+    expect(await verifyBearerIdToken(makeRequest("Bearer phone-only"))).toEqual({
+      uid: "u2",
+      email: null,
+      emailConfirmedAt: null,
+    });
+  });
+});
+
+describe("resolveVerifiedCaller", () => {
+  it("resolves a cookie session with its confirmation state", async () => {
+    mockServerGetUser.mockResolvedValueOnce({
+      data: {
+        user: {
+          id: "cookie-uid",
+          email: "cookie@example.org",
+          email_confirmed_at: "2026-01-01T00:00:00Z",
+        },
+      },
+      error: null,
+    });
+
+    const result = await resolveVerifiedCaller(makeRequest());
+
+    expect(result).toEqual({
+      status: "ok",
+      caller: {
+        uid: "cookie-uid",
+        email: "cookie@example.org",
+        emailConfirmedAt: "2026-01-01T00:00:00Z",
+      },
+    });
+  });
+
+  it("returns invalid when there is no bearer token and no cookie session", async () => {
+    mockServerGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: "no session" } });
+
+    expect(await resolveVerifiedCaller(makeRequest())).toEqual({ status: "invalid" });
+  });
+
+  it("never falls back to the cookie session when a bearer token is present but invalid", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: "bad token" } });
+
+    const result = await resolveVerifiedCaller(makeRequest("Bearer not-a-token"));
+
+    expect(result).toEqual({ status: "invalid" });
+    expect(mockServerGetUser).not.toHaveBeenCalled();
+  });
+
+  it("reports a Supabase server error as unavailable", async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: "down", status: 503 } });
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await resolveVerifiedCaller(makeRequest("Bearer token"))).toEqual({ status: "unavailable" });
+
+    errorSpy.mockRestore();
   });
 });

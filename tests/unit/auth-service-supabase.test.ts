@@ -132,4 +132,71 @@ describe("authService (Supabase)", () => {
       expect(profile).toBeNull();
     });
   });
+
+  describe("register", () => {
+    const originalFetch = globalThis.fetch;
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    it("sends the sign-up access token when the address is already confirmed", async () => {
+      mockSignUp.mockResolvedValue({
+        data: {
+          user: {
+            id: "test-uuid-1",
+            email: "user@example.com",
+            email_confirmed_at: "2026-01-01T00:00:00Z",
+          },
+          session: { access_token: "signup-access-token" },
+        },
+        error: null,
+      });
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ success: true }) });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      const result = await authService.register({
+        name: "Test User",
+        email: "user@example.com",
+        phone: "9876543210",
+        password: "password123",
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/auth/register");
+      expect((init.headers as Record<string, string>).Authorization).toBe(
+        "Bearer signup-access-token"
+      );
+      expect(JSON.parse(String(init.body))).toMatchObject({
+        userId: "test-uuid-1",
+        email: "user@example.com",
+      });
+      expect(result.provisioning).toBe("provisioned");
+    });
+
+    it("does not provision while the address is unconfirmed", async () => {
+      mockSignUp.mockResolvedValue({
+        data: {
+          user: { id: "test-uuid-2", email: "pending@example.com", email_confirmed_at: null },
+          session: null,
+        },
+        error: null,
+      });
+      const fetchMock = jest.fn();
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      const result = await authService.register({
+        name: "Pending User",
+        email: "pending@example.com",
+        phone: "",
+        password: "password123",
+      });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(result.provisioning).toBe("pending");
+    });
+  });
 });

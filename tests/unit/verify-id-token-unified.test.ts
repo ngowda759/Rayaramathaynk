@@ -84,6 +84,10 @@ describe("Unified Token Verification (lib/auth/verify-id-token.ts)", () => {
     });
 
     const caller = await verifyBearerIdToken(request);
-    expect(caller).toEqual({ uid: "user-abc", email: "test@example.com" });
+    expect(caller).toEqual({
+      uid: "user-abc",
+      email: "test@example.com",
+      emailConfirmedAt: null,
+    });
   });
 });

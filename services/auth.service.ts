@@ -61,11 +61,17 @@ class AuthService {
       return { data, error, provisioning: "pending" };
     }
 
-    // Call user self-provisioning endpoint to guarantee public.users row exists
+    // Call user self-provisioning endpoint to guarantee public.users row exists. The route
+    // requires a verified Supabase identity, so the access token from the sign-up session is
+    // sent; a body UUID/email alone is not authentication.
+    const accessToken = (data.session as { access_token?: string } | null)?.access_token;
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({
           userId,
           email,

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resolveVerifiedCaller } from "@/lib/auth/verify-id-token";
 import {
   EMAIL_CONFLICT_MESSAGE,
+  EMAIL_NOT_VERIFIED_MESSAGE,
   findEmailConflicts,
   findOwnedRowAfterConflict,
+  isConfirmedEmail,
   isUniqueViolation,
 } from "@/lib/auth/provisioning";
 import type { UserProfile } from "@/types/user";
@@ -19,73 +22,20 @@ const profileSyncSchema = z
   })
   .strict();
 
-function parseJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
-  } catch {
-    return null;
-  }
-}
-
-async function getCallerIdentity(request: NextRequest): Promise<{
-  uid: string;
-  email: string | null;
-  emailVerified: boolean;
-} | null> {
-  const header = request.headers.get("authorization");
-  if (!header || !header.startsWith("Bearer ")) return null;
-  const token = header.slice(7).trim();
-  if (!token) return null;
-
-  // Supabase Auth is the only sign-in provider.
-  try {
-    const { createAdminClient } = await import("@/lib/supabase/admin");
-    const supabase = createAdminClient();
-    if (typeof supabase?.auth?.getUser === "function") {
-      const { data, error } = await supabase.auth.getUser(token);
-      if (error) {
-        const status = (error as { status?: number })?.status;
-        if (typeof status === "number" && status >= 500) {
-          console.error("[getCallerIdentity] Supabase auth server error:", error.message);
-          throw new Error("Authentication provider error");
-        }
-        return null;
-      }
-      if (data?.user) {
-        const emailVerified = Boolean(
-          data.user.email_confirmed_at || (data.user as { confirmed_at?: string }).confirmed_at
-        );
-        return {
-          uid: data.user.id,
-          email: typeof data.user.email === "string" ? data.user.email : null,
-          emailVerified,
-        };
-      }
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message === "Authentication provider error") {
-      throw error;
-    }
-    return null;
-  }
-
-  return null;
-}
-
 export async function GET(request: NextRequest) {
   try {
-    let caller: { uid: string; email: string | null; emailVerified: boolean } | null;
-    try {
-      caller = await getCallerIdentity(request);
-    } catch (authError) {
-      console.error("[GET /api/auth/profile] Auth provider failure:", authError);
+    const resolution = await resolveVerifiedCaller(request);
+    if (resolution.status === "unavailable") {
       return NextResponse.json({ error: "Authentication provider error" }, { status: 503 });
     }
-
-    if (!caller) {
+    if (resolution.status !== "ok") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const caller = resolution.caller;
+    // The profile row is identity-owned, so a confirmed address is required before any read.
+    if (!caller.email || !isConfirmedEmail(caller.emailConfirmedAt)) {
+      return NextResponse.json({ error: EMAIL_NOT_VERIFIED_MESSAGE }, { status: 403 });
     }
 
     const supabase = createAdminClient();
@@ -121,7 +71,7 @@ export async function GET(request: NextRequest) {
       profileImage: data.photo_url || "",
       isApproved,
       isActive: data.active !== false,
-      emailVerified: caller.emailVerified,
+      emailVerified: Boolean(caller.emailConfirmedAt),
       lastLogin: null,
       createdAt: data.created_at,
       updatedAt: data.updated_at,
@@ -136,16 +86,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    let caller: { uid: string; email: string | null; emailVerified: boolean } | null;
-    try {
-      caller = await getCallerIdentity(request);
-    } catch (authError) {
-      console.error("[POST /api/auth/profile] Auth provider failure:", authError);
+    const resolution = await resolveVerifiedCaller(request);
+    if (resolution.status === "unavailable") {
       return NextResponse.json({ error: "Authentication provider error" }, { status: 503 });
     }
-
-    if (!caller) {
+    if (resolution.status !== "ok") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const caller = resolution.caller;
+    // A profile write depends on the identity, so a confirmed address is required before any read.
+    if (!caller.email || !isConfirmedEmail(caller.emailConfirmedAt)) {
+      return NextResponse.json({ error: EMAIL_NOT_VERIFIED_MESSAGE }, { status: 403 });
     }
 
     const payloadRaw = await request.json().catch(() => null);

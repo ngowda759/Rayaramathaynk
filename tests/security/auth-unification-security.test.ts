@@ -225,7 +225,11 @@ describe("Phase 3 Supabase Auth Unification Security Test Suite", () => {
     });
 
     const caller = await verifyBearerIdToken(req);
-    expect(caller).toEqual({ uid: "devotee-uuid-1", email: "devotee@example.com" });
+    expect(caller).toEqual({
+      uid: "devotee-uuid-1",
+      email: "devotee@example.com",
+      emailConfirmedAt: null,
+    });
   });
 
   // 9. Unauthorized admin access

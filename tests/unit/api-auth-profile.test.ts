@@ -28,6 +28,10 @@ jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => mockSupabaseClient,
 }));
 
+jest.mock("@/lib/supabase/server", () => ({
+  createClient: jest.fn().mockRejectedValue(new Error("no cookie session in test")),
+}));
+
 type Row = Record<string, unknown>;
 const mockUsersTable: Row[] = [];
 let mockDbError: Error | null = null;
@@ -127,7 +131,7 @@ describe("GET /api/auth/profile", () => {
     expect(res.status).toBe(401);
   });
 
-  it("never assumes email verification from a valid Supabase token when the email is unconfirmed", async () => {
+  it("denies an unconfirmed Supabase identity before reading the profile", async () => {
     mockSupabaseAuth("11111111-1111-4111-8111-111111111111", "unverified@example.org", false);
     mockUsersTable.push({
       id: "u-123",
@@ -140,10 +144,9 @@ describe("GET /api/auth/profile", () => {
     });
 
     const res = await GET(makeRequest("/api/auth/profile", { token: "valid-fb-token" }));
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.profile.emailVerified).toBe(false);
-    expect(body.profile.isApproved).toBe(false);
+    expect(body.error).toMatch(/verification is required/i);
   });
 
   it("sets emailVerified true only when the Supabase account email is confirmed", async () => {
@@ -222,7 +225,7 @@ describe("GET /api/auth/profile", () => {
   });
 
   it("handles Supabase errors explicitly and returns 500", async () => {
-    mockSupabaseAuth("66666666-6666-4666-8666-666666666666", "err@example.org", false);
+    mockSupabaseAuth("66666666-6666-4666-8666-666666666666", "err@example.org", true);
     mockDbError = new Error("Database timeout");
 
     const res = await GET(makeRequest("/api/auth/profile", { token: "valid-token" }));
@@ -253,7 +256,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: role (400)", async () => {
-    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", true);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -271,7 +274,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: isApproved (400)", async () => {
-    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", true);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -289,7 +292,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: is_approved (400)", async () => {
-    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", true);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
@@ -307,7 +310,7 @@ describe("POST /api/auth/profile", () => {
   });
 
   it("rejects client-controlled changes to privileged field: active (400)", async () => {
-    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", false);
+    mockSupabaseAuth("77777777-7777-4777-8777-777777777777", "attacker@example.org", true);
 
     const res = await POST(
       makeRequest("/api/auth/profile", {
