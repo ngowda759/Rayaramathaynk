@@ -21,10 +21,10 @@ const SOURCE_DIRS = ["app", "lib", "services", "hooks", "components"];
 const SOURCE_FILES = ["proxy.ts", "next.config.ts"];
 // Supabase credentials. The NEXT_PUBLIC_SUPABASE_* browser settings are the local stack's own keys.
 const SENSITIVE = /^(?:NEXT_PUBLIC_SUPABASE_\w+|SUPABASE_\w+|PRISMA_DATABASE_URL)$/;
-// Every other secret the app reads (A4S-FIX item 6): the AI providers, WhatsApp, e-mail, the admin API key, and any
+// Every other secret the app reads (A4S-FIX item 6): the AI providers, WhatsApp, e-mail, and any
 // variable whose name says it is a key, secret, token, password or credential.
 const OTHER_SECRET =
-  /^(?:OPENAI_\w*KEY\w*|ANTHROPIC_\w*KEY\w*|GOOGLE_GENERATIVE_\w+|OPENROUTER_\w*KEY\w*|WHATSAPP_\w+|EMAIL_\w+|ADMIN_API_KEY|\w*(?:_KEY|_SECRET|_TOKEN|_PASSWORD|_CREDENTIALS)(?:_\w+)?)$/;
+  /^(?:OPENAI_\w*KEY\w*|ANTHROPIC_\w*KEY\w*|GOOGLE_GENERATIVE_\w+|OPENROUTER_\w*KEY\w*|WHATSAPP_\w+|EMAIL_\w+|\w*(?:_KEY|_SECRET|_TOKEN|_PASSWORD|_CREDENTIALS)(?:_\w+)?)$/;
 // Secrets a library reads from the environment itself, so the scan cannot see them: @vercel/blob reads its token.
 const IMPLICIT_SECRETS = ["BLOB_READ_WRITE_TOKEN"];
 
@@ -118,11 +118,14 @@ describe("seva e2e isolation", () => {
     expect(Object.keys(env).filter((name) => /FIREBASE|FIRESTORE|GCLOUD_PROJECT/.test(name))).toEqual([]);
   });
 
-  it("finds the AI, admin-key and other secrets the app reads", () => {
+  it("finds the AI and other secrets the app reads", () => {
     const names = otherSecretsTheAppReads();
-    for (const expected of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_GENERATIVE_API_KEY", "OPENROUTER_API_KEY", "ADMIN_API_KEY"]) {
+    // ADMIN_API_KEY is deliberately absent: B2 retired the static-key admin bypass, so the
+    // app no longer reads it (the e2e harness still blanks it defensively).
+    for (const expected of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_GENERATIVE_API_KEY", "OPENROUTER_API_KEY"]) {
       expect(names).toContain(expected);
     }
+    expect(names).not.toContain("ADMIN_API_KEY");
   });
 
   it("blanks every other secret the app reads, and the ones a library reads itself", () => {
