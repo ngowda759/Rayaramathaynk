@@ -136,6 +136,16 @@ describe("general settings behaviour is preserved", () => {
     expect(mockSaveSettingsDocument).toHaveBeenCalledTimes(2);
   });
 
+  test.each(["billing", "priest", "staff", "office_staff"])(
+    "%s cannot write a general settings document",
+    async (role) => {
+      authorized(role);
+      const response = await PUT(put("footer"), params("footer"));
+      expect(response.status).toBe(403);
+      expect(mockSaveSettingsDocument).not.toHaveBeenCalled();
+    },
+  );
+
   test("the admin read of financeSettings is not restricted", async () => {
     authorized("temple_admin");
     const response = await GET(get("financeSettings"), params("financeSettings"));

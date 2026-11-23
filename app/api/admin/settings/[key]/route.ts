@@ -14,6 +14,9 @@ import {
  */
 const SUPER_ADMIN_ONLY_SETTINGS: ReadonlySet<string> = new Set(["financeSettings", "device"]);
 
+/** Roles that may write the remaining settings documents (docs/ADMIN-GUIDELINES.md). */
+const SETTINGS_WRITE_ROLES: ReadonlySet<string> = new Set(["super_admin", "temple_admin", "admin"]);
+
 /**
  * Admin read/write for a website settings document.
  *
@@ -56,7 +59,11 @@ export async function PUT(
   if (!isSettingsDocumentKey(key)) {
     return NextResponse.json({ error: "Unknown settings document" }, { status: 404 });
   }
-  if (SUPER_ADMIN_ONLY_SETTINGS.has(key) && auth.user.role !== "super_admin") {
+  if (SUPER_ADMIN_ONLY_SETTINGS.has(key)) {
+    if (auth.user.role !== "super_admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else if (!SETTINGS_WRITE_ROLES.has(auth.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
