@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveRowUuid, rowIdFilter } from "@/lib/supabase/identifier";
 
@@ -32,7 +32,7 @@ function rowToItem(row: any) {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "featured.read");
   if (!auth.ok) return auth.response;
 
   try {
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "featured.write");
   if (!auth.ok) return auth.response;
 
   try {
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "featured.write");
   if (!auth.ok) return auth.response;
 
   try {
@@ -113,7 +113,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "featured.delete");
   if (!auth.ok) return auth.response;
 
   try {

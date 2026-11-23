@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { aaradhaneService } from "@/services/aaradhane.server";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "aaradhane.read");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   const item = await aaradhaneService.getAaradhaneById(id);
@@ -19,7 +19,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "aaradhane.write");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
@@ -35,7 +35,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "aaradhane.delete");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {

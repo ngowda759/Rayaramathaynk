@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import {
   clearKnowledgeCache,
   deleteArticle,
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 /** GET /api/admin/knowledge/[id] - one article. Admin-only. */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.read");
   if (!auth.ok) return auth.response;
 
   try {
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 /** PUT /api/admin/knowledge/[id] - update an article and keep it published. Admin-only. */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.write");
   if (!auth.ok) return auth.response;
 
   try {
@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 /** DELETE /api/admin/knowledge/[id] - remove an article. Admin-only. */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.delete");
   if (!auth.ok) return auth.response;
 
   try {

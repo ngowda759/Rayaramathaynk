@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { donationService } from "@/services/donation.server";
 
 /**
  * Recent donations for the admin notification dropdown.
  *
  * `donations` is deny-all under RLS, so the browser cannot read it with the anon key.
- * This route is guarded by `requireAdminUser` and reads through `donationService` with
+ * This route is guarded by `requireAdminCapability` and reads through `donationService` with
  * the service-role client. It replaces the browser `getDocs(collection(db, "donations"))`
  * call the notification hook previously made against Firestore.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "donations.read");
   if (!auth.ok) return auth.response;
 
   try {

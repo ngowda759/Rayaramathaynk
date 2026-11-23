@@ -1,7 +1,7 @@
 // app/api/admin/users/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { userService } from "@/services/user.server";
 
 /**
@@ -18,7 +18,7 @@ import { userService } from "@/services/user.server";
  * GET /api/admin/users/:id - Read one user, or 404.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "users.directory.read");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { volunteerService } from "@/services/volunteer.server";
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "volunteers.read");
   if (!auth.ok) return auth.response;
   try {
     return NextResponse.json(await volunteerService.getAllVolunteers());
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "volunteers.write");
   if (!auth.ok) return auth.response;
   try {
     const id = await volunteerService.createVolunteer(await request.json());

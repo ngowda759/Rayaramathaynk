@@ -32,6 +32,9 @@ jest.mock("@/lib/auth/admin-auth", () => ({
   requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
   verifyAdminUser: (...args: unknown[]) => mockVerifyAdminUser(...args),
 }));
+jest.mock("@/lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: (...args: unknown[]) => mockRequireAdminUser(...args),
+}));
 
 const unauthorized = () =>
   NextResponse.json({ error: "unauthenticated" }, { status: 401 });
@@ -53,6 +56,7 @@ beforeEach(() => {
 
 const GUARDS = [
   "requireAdminUser",
+  "requireAdminCapability",
   "verifyAdminUserResult",
   "verifyAdminUser",
   "requireRayaAdminUser",

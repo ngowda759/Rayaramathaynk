@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { createTestimonial, getAllTestimonials, getPendingTestimonials } from "@/services/testimonial.server";
 
 /** Admin devotee testimonial list (`?pending=1` for the review queue) and creation. */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "testimonials.read");
   if (!auth.ok) return auth.response;
   try {
     const pending = request.nextUrl.searchParams.get("pending") === "1";
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "testimonials.write");
   if (!auth.ok) return auth.response;
   try {
     const body = await request.json();

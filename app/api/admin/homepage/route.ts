@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { homepageService } from "@/services/homepage.server";
 
 /**
  * Homepage settings API (admin only).
  *
  * `settings_documents` is deny-all under RLS, so this cannot be read or written from
- * the browser with the anon key. Both handlers are guarded by `requireAdminUser` and
+ * the browser with the anon key. Both handlers are guarded by `requireAdminCapability` and
  * use the service-role client inside the service. This replaces the direct Firestore
  * `getDoc`/`setDoc` calls the homepage admin form previously made from the browser.
  */
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "homepage.read");
   if (!auth.ok) return auth.response;
 
   try {
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "homepage.write");
   if (!auth.ok) return auth.response;
 
   try {

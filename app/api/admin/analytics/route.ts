@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { getAnalyticsSummary, logIntentFeedback, type IntentFeedback } from "@/services/analytics.service";
 
 /**
@@ -12,7 +12,7 @@ import { getAnalyticsSummary, logIntentFeedback, type IntentFeedback } from "@/s
  * Get complete analytics summary for admin dashboard
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "analytics.read");
   if (!auth.ok) return auth.response;
 
   try {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
  * Submit intent correction feedback
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "analytics.write");
   if (!auth.ok) return auth.response;
 
   try {

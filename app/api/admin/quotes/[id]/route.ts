@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.server";
-import { verifyAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 // GET /api/admin/quotes/[id]
 export async function GET(
@@ -13,10 +13,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAdminCapability(request, "quotes.read");
+    if (!auth.ok) return auth.response;
     const { id } = await params;
     const quote = await quoteService.getQuoteById(id);
 
@@ -40,10 +38,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAdminCapability(request, "quotes.write");
+    if (!auth.ok) return auth.response;
     const { id } = await params;
     const body = await request.json();
 
@@ -76,10 +72,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const admin = await verifyAdminUser(request);
-    if (!admin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAdminCapability(request, "quotes.delete");
+    if (!auth.ok) return auth.response;
     const { id } = await params;
     await quoteService.deleteQuote(id);
 

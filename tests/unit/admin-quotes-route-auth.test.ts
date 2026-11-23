@@ -12,11 +12,11 @@
 
 jest.mock("server-only", () => ({}), { virtual: true });
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-const mockVerifyAdminUser = jest.fn();
-jest.mock("@/lib/auth/admin-auth", () => ({
-  verifyAdminUser: (...args: unknown[]) => mockVerifyAdminUser(...args),
+const mockRequireAdminCapability = jest.fn();
+jest.mock("@/lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: (...args: unknown[]) => mockRequireAdminCapability(...args),
 }));
 
 // The service is replaced wholesale: these tests are about the route guard, not
@@ -62,7 +62,7 @@ function req(method: string, body?: unknown) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockVerifyAdminUser.mockResolvedValue(null);
+  mockRequireAdminCapability.mockResolvedValue({ ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) });
 });
 
 describe("admin quote routes reject unauthenticated callers", () => {
@@ -86,7 +86,7 @@ describe("admin quote routes reject unauthenticated callers", () => {
   });
 
   it("seed POST performs the seed once authorized", async () => {
-    mockVerifyAdminUser.mockResolvedValue({ uid: "admin-1", email: "a@b.c" });
+    mockRequireAdminCapability.mockResolvedValue({ ok: true, user: { uid: "admin-1", email: "a@b.c", role: "temple_admin", provider: "supabase" }, capability: "quotes.write" });
     const res = await seedPost(req("POST"));
     expect(res.status).toBe(200);
     expect(mockSeed).toHaveBeenCalledTimes(1);

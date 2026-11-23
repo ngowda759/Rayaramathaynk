@@ -5,11 +5,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { quoteService } from "@/services/quote.server";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 // GET /api/admin/quotes - List all quotes with optional filters
 export async function GET(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "quotes.read");
   if (!auth.ok) return auth.response;
 
   try {
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/admin/quotes - Create a new quote
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "quotes.write");
   if (!auth.ok) return auth.response;
   const userEmail = auth.user.email;
 
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/admin/quotes - Bulk update quotes
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "quotes.write");
   if (!auth.ok) return auth.response;
 
   try {
@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/admin/quotes - Bulk delete quotes
 export async function DELETE(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "quotes.delete");
   if (!auth.ok) return auth.response;
 
   try {
