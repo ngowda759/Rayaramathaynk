@@ -351,7 +351,7 @@ app/auth/callback/route.ts   (new, PR 2)
   ├ supabase.auth.exchangeCodeForSession(code)
   │     error                      → redirect to /login?error=<safe code>   (never a 500)
   ├ provision (§5): create devotee | refuse on email conflict
-  ├ sanitize `next` with lib/auth/safe-return.ts: safeReturnPath
+  ├ sanitize `next` with lib/auth/safe-return.ts: sanitizeReturnPath (server form)
   └ redirect to the sanitized path (default "/")
 ```
 
@@ -631,8 +631,9 @@ that configuration entirely and is the simpler option.
 6. **`state` / CSRF.** `signInWithOAuth` generates and verifies the `state` parameter; do not
    hand-roll the authorize URL, and do not bypass the SDK for the exchange.
 7. **Safe redirects.** Both `redirectTo` and `next` are attacker-controllable. Route them through
-   `lib/auth/safe-return.ts` (`safeReturnPath`, `assignLocation`), which already handles `//host`,
-   backslashes, control characters, look-alike Unicode slashes and multi-round percent-encoding.
+   `lib/auth/safe-return.ts`: the server boundary uses `sanitizeReturnPath` (an explicit origin, no
+   browser global), the browser uses `safeReturnPath`. Both handle `//host`, backslashes, control
+   characters, look-alike Unicode slashes and multi-round percent-encoding, and fall back to `/`.
    Never pass a raw query value to `NextResponse.redirect`.
 8. **No secrets in the browser.** The Google client secret and the service-role key stay
    server-side. The callback uses the anon key plus the caller's own code.
