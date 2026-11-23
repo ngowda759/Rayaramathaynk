@@ -28,6 +28,7 @@ import { can, mapFirestoreRole, type PermissionContext, type SevaActor } from "@
 import type { StaffOnboardRequest, StaffUpdateRequest } from "@/lib/seva/schemas";
 import { STAFF_TEXT } from "@/lib/seva/strings/staff";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { escapeLikePattern } from "@/lib/supabase/filters";
 import type { SevaAction, SevaRole } from "@/types/seva";
 import type {
   StaffChangeStep,
@@ -41,6 +42,7 @@ import type {
 import { requireSevaActor, type ActorResult } from "./auth";
 import { getIdentityAdapter } from "./identity";
 import { callRpc } from "./rpc";
+import { planUsersIdentityLink, type UsersIdentityRow, type UsersIdentityRefusal } from "./users-identity-link";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -306,6 +308,111 @@ interface LinkedLogin {
   previousActive: boolean | null;
 }
 
+const USERS_IDENTITY_COLUMNS = "id, email, auth_user_id, role, active, display_name";
+
+function toUsersIdentityRow(raw: unknown): UsersIdentityRow {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  if (
+    typeof row.id !== "string" ||
+    (row.email !== null && row.email !== undefined && typeof row.email !== "string") ||
+    (row.auth_user_id !== null && row.auth_user_id !== undefined && typeof row.auth_user_id !== "string") ||
+    (row.role !== null && row.role !== undefined && typeof row.role !== "string") ||
+    (row.active !== null && row.active !== undefined && typeof row.active !== "boolean") ||
+    (row.display_name !== null && row.display_name !== undefined && typeof row.display_name !== "string")
+  ) {
+    throw new SevaError("internal");
+  }
+  return {
+    id: row.id,
+    email: typeof row.email === "string" ? row.email : null,
+    auth_user_id: typeof row.auth_user_id === "string" ? row.auth_user_id : null,
+    role: typeof row.role === "string" ? row.role : null,
+    active: typeof row.active === "boolean" ? row.active : null,
+    display_name: typeof row.display_name === "string" ? row.display_name : null,
+  };
+}
+
+/**
+ * The `public.users` rows a link decision must consider: those whose stored address contains this email
+ * (case-insensitive) plus the row already owned by the resolved Auth identity, if any. The plan then compares
+ * each stored address exactly, so a case/space variant is seen as a different account rather than selected.
+ */
+async function readUsersIdentityRows(
+  db: AdminClient,
+  email: string,
+  authUserId: string | null,
+): Promise<UsersIdentityRow[]> {
+  const byEmail = await db
+    .from("users")
+    .select(USERS_IDENTITY_COLUMNS)
+    .ilike("email", `%${escapeLikePattern(email)}%`);
+  if (byEmail.error) throw new SevaError("internal");
+
+  const byIdentity = authUserId
+    ? await db.from("users").select(USERS_IDENTITY_COLUMNS).eq("auth_user_id", authUserId)
+    : null;
+  if (byIdentity?.error) throw new SevaError("internal");
+
+  const rows = new Map<string, UsersIdentityRow>();
+  for (const raw of [...(byEmail.data ?? []), ...(byIdentity?.data ?? [])] as unknown[]) {
+    const row = toUsersIdentityRow(raw);
+    rows.set(row.id, row);
+  }
+  return [...rows.values()];
+}
+
+const USERS_LINK_REFUSAL: Record<UsersIdentityRefusal, string> = {
+  ambiguous: "More than one account uses this email. Resolve the duplicates before onboarding.",
+  foreign: "This email is already linked to a different sign-in. Resolve it before onboarding.",
+  "non-normalized": "An existing account stores this email with different capitalization or spacing. Resolve it before onboarding.",
+};
+
+type UsersLinkResolution = { kind: "none" } | { kind: "link"; row: UsersIdentityRow };
+
+/**
+ * Decides whether onboarding may link a legacy `public.users` row to this Auth identity.
+ *
+ * Read-only, and called before any write, so a refusal leaves no login behind. Linking is possible only for
+ * a row with `auth_user_id IS NULL` whose email matches exactly, and only when the office confirmed it
+ * (`linkExisting`); an ambiguous, foreign or merely similar match fails closed.
+ */
+async function resolveUsersLink(
+  db: AdminClient,
+  actor: SevaActor,
+  input: StaffOnboardRequest,
+  authUserId: string | null,
+): Promise<UsersLinkResolution> {
+  const plan = planUsersIdentityLink({
+    authUserId,
+    email: input.email,
+    linkExisting: input.linkExisting === true,
+    rows: await readUsersIdentityRows(db, input.email, authUserId),
+  });
+
+  if (plan.kind === "none" || plan.kind === "already-linked") return { kind: "none" };
+  if (plan.kind === "refuse") throw invalid("email", USERS_LINK_REFUSAL[plan.reason]);
+
+  // A legacy row that already holds an admin-console role or is inactive is a super admin's call (C-62), exactly as
+  // for an existing sign-in account.
+  if ((isAdminConsoleRole(plan.row.role) || plan.row.active === false) && !can(actor, "staff.grant_super_admin")) {
+    throw new SevaError("forbidden", { reason: "needs_super_admin", message: STAFF_TEXT.linkNeedsSuperAdmin.en });
+  }
+
+  if (plan.kind === "needs-confirmation") {
+    const detail: StaffExistingAccountDetail = {
+      field: "email",
+      reason: "existing_account",
+      currentRole: plan.row.role,
+      currentlyActive: plan.row.active,
+      displayName: plan.row.display_name,
+      message: EXISTING_ACCOUNT,
+    };
+    throw new SevaError("validation", { ...detail });
+  }
+
+  return { kind: "link", row: plan.row };
+}
+
 /**
  * An email that already has a website account (a website admin, a devotee, the site owner). Without the office's
  * confirmation (`linkExisting`) the answer is 400 existing_account (StaffExistingAccountDetail) before any write, so
@@ -359,6 +466,10 @@ async function existingLogin(db: AdminClient, actor: SevaActor, input: StaffOnbo
  * An email that already has a website account is linked instead, once the office confirms (`linkExisting`): its uid
  * is used and no login is made (they keep their password, so no set-password email), the profile gets the role, then
  * the staff row, then a second staff.onboard audit row recording `linked_existing` and the role it had before.
+ *
+ * A legacy `public.users` row with no Auth identity is linked the same way, but only when its email matches exactly
+ * and the office confirms (`linkExisting`); the link is guarded by `auth_user_id IS NULL`, so a row that already
+ * belongs to another sign-in is never overwritten.
  */
 export async function onboardStaff(
   actor: SevaActor,
@@ -379,6 +490,8 @@ export async function onboardStaff(
   if (sameNo) throw invalid("staffNo", `Staff no. ${staffNoText(staffNo)} is already taken`);
   if (sameEmail) throw invalid("email", "This email already belongs to a staff member");
   const linked = await existingLogin(db, actor, input);
+  // Read-only and before any write: a refusal here leaves no login behind.
+  const usersLink = await resolveUsersLink(db, actor, input, linked?.externalUid || opts.authUserId || null);
 
   const identity = getIdentityAdapter();
   const createLogin = opts.createLogin ?? ((login) => identity.createLogin(login));
@@ -399,6 +512,26 @@ export async function onboardStaff(
       step: "identity",
       writes: [
         ...loginWrites,
+        ...(usersLink.kind === "link"
+          ? [
+              {
+                name: "profile",
+                // Link the legacy authorization row first, guarded so a concurrent link is never overwritten; the
+                // identity adapter then updates that same row by auth_user_id.
+                run: async () => {
+                  if (!externalUid) throw new SevaError("internal");
+                  const { data, error } = await db
+                    .from("users")
+                    .update({ auth_user_id: externalUid })
+                    .eq("id", usersLink.row.id)
+                    .is("auth_user_id", null)
+                    .select("id");
+                  if (error) throw new SevaError("internal");
+                  if (!Array.isArray(data) || data.length === 0) throw new SevaError("internal");
+                },
+              },
+            ]
+          : []),
         {
           name: "profile",
           run: () =>
@@ -438,36 +571,6 @@ export async function onboardStaff(
             if (authUserId) {
               const { error: linkError } = await db.from("staff").update({ auth_user_id: authUserId }).eq("id", staffId);
               if (linkError) throw new SevaError("internal");
-            }
-
-            // Keep the `public.users` authorization record (role + active) in step with the staff row.
-            const { data: existingUser, error: readError } = await db
-              .from("users")
-              .select("id")
-              .eq("email", input.email)
-              .maybeSingle();
-            if (readError) throw new SevaError("internal");
-
-            if (existingUser) {
-              const { error: updateError } = await db
-                .from("users")
-                .update({
-                  role: input.role,
-                  active: true,
-                  display_name: input.fullName,
-                  ...(authUserId ? { auth_user_id: authUserId } : {}),
-                })
-                .eq("id", (existingUser as { id: string }).id);
-              if (updateError) throw new SevaError("internal");
-            } else {
-              const { error: insertError } = await db.from("users").insert({
-                email: input.email,
-                display_name: input.fullName,
-                role: input.role,
-                active: true,
-                auth_user_id: authUserId,
-              });
-              if (insertError) throw new SevaError("internal");
             }
           },
         },

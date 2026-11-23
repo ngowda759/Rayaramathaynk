@@ -28,6 +28,25 @@ const SUPER_ACTOR: SevaActor = {
 const mockStaffTable: Record<string, unknown>[] = [];
 const mockUsersTable: Record<string, unknown>[] = [];
 
+/** A SQL LIKE/ILIKE pattern (`%`, `_`, `\` escape) as a case-insensitive RegExp. */
+function likeToRegExp(pattern: string): RegExp {
+  let source = "^";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern[i];
+    if (char === "\\") {
+      i += 1;
+      source += (pattern[i] ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    } else if (char === "%") {
+      source += ".*";
+    } else if (char === "_") {
+      source += ".";
+    } else {
+      source += char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`${source}$`, "i");
+}
+
 function createTableMock(tableName: string) {
   const table = tableName === "staff" ? mockStaffTable : mockUsersTable;
   const filters: ((r: Record<string, unknown>) => boolean)[] = [];
@@ -36,6 +55,15 @@ function createTableMock(tableName: string) {
     select: jest.fn(() => query),
     eq: jest.fn((col: string, val: unknown) => {
       filters.push((r) => r[col] === val);
+      return query;
+    }),
+    is: jest.fn((col: string, val: unknown) => {
+      filters.push((r) => (r[col] ?? null) === val);
+      return query;
+    }),
+    ilike: jest.fn((col: string, pattern: string) => {
+      const match = likeToRegExp(pattern);
+      filters.push((r) => typeof r[col] === "string" && match.test(r[col] as string));
       return query;
     }),
     maybeSingle: jest.fn(async () => {
@@ -47,16 +75,30 @@ function createTableMock(tableName: string) {
       return { data: row, error: null };
     }),
     update: jest.fn((patch: Record<string, unknown>) => {
-      return {
-        eq: jest.fn(async (col: string, val: unknown) => {
-          for (const r of table) {
-            if (r[col] === val) {
-              Object.assign(r, patch);
-            }
-          }
-          return { data: patch, error: null };
-        }),
+      const updateFilters: ((r: Record<string, unknown>) => boolean)[] = [];
+      let applied: { data: unknown; error: null } | null = null;
+      const apply = () => {
+        if (applied) return applied;
+        for (const r of table) {
+          if (updateFilters.every((f) => f(r))) Object.assign(r, patch);
+        }
+        applied = { data: patch, error: null };
+        return applied;
       };
+      const builder = {
+        eq: jest.fn((col: string, val: unknown) => {
+          updateFilters.push((r) => r[col] === val);
+          return builder;
+        }),
+        is: jest.fn((col: string, val: unknown) => {
+          updateFilters.push((r) => (r[col] ?? null) === val);
+          return builder;
+        }),
+        select: jest.fn(async () => apply()),
+        then: (resolve: (v: unknown) => unknown, reject: (r: unknown) => unknown) =>
+          Promise.resolve(apply()).then(resolve, reject),
+      };
+      return builder;
     }),
     in: jest.fn(() => query),
     order: jest.fn(() => query),
@@ -113,7 +155,25 @@ const mockIdentity: jest.Mocked<IdentityAdapter> = {
   getAccessProfile: jest.fn(async () => null),
   findLoginByEmail: jest.fn(async () => null),
   createLogin: jest.fn(async () => ({ externalUid: "fb-generated-uid-42" })),
-  setAccessProfile: jest.fn(async () => undefined),
+  setAccessProfile: jest.fn(async (uid: string, patch: { role?: string; isActive?: boolean; email?: string; displayName?: string }) => {
+    // Mirrors the real adapter: upsert the authorization row keyed by auth_user_id.
+    const existing = mockUsersTable.find((r) => r.auth_user_id === uid);
+    if (existing) {
+      if (patch.role !== undefined) existing.role = patch.role;
+      if (patch.isActive !== undefined) existing.active = patch.isActive;
+      if (patch.email !== undefined) existing.email = patch.email;
+      if (patch.displayName !== undefined) existing.display_name = patch.displayName;
+      return;
+    }
+    mockUsersTable.push({
+      id: `user-${mockUsersTable.length + 1}`,
+      auth_user_id: uid,
+      email: patch.email ?? null,
+      role: patch.role ?? "devotee",
+      active: patch.isActive ?? true,
+      display_name: patch.displayName ?? null,
+    });
+  }),
   setLoginEnabled: jest.fn(async () => undefined),
   deleteLogin: jest.fn(async () => undefined),
 };
@@ -123,12 +183,15 @@ jest.mock("@/lib/seva/server/identity", () => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockIdentity.createLogin.mockReset().mockResolvedValue({ externalUid: "fb-generated-uid-42" });
   mockStaffTable.length = 0;
   mockUsersTable.length = 0;
 });
 
 describe("Synchronized Staff Onboarding", () => {
   it("links auth_user_id and creates the public.users record", async () => {
+    // create-admin's createLogin returns the same uid its authUserId getter exposes.
+    mockIdentity.createLogin.mockResolvedValueOnce({ externalUid: "sb-uuid-staff-1" });
     const res = await onboardStaff(
       SUPER_ACTOR,
       { fullName: "Supabase Staff", email: "supabase.staff@example.com", role: "receptionist", viewOnly: false },
@@ -141,7 +204,7 @@ describe("Synchronized Staff Onboarding", () => {
     // The staff row keeps the SQL-written firebase_uid for rollback, and is linked to its Supabase Auth UUID.
     const staffRow = mockStaffTable.find((r) => r.id === res.staffId);
     expect(staffRow).toBeDefined();
-    expect(staffRow?.firebase_uid).toBe("fb-generated-uid-42");
+    expect(staffRow?.firebase_uid).toBe("sb-uuid-staff-1");
     expect(staffRow?.auth_user_id).toBe("sb-uuid-staff-1");
 
     // The public.users authorization record carries the role and the Supabase Auth identity.
@@ -173,14 +236,15 @@ describe("Synchronized Staff Onboarding", () => {
   });
 
   it("is idempotent when public.users row already exists", async () => {
-    // Pre-existing public.users row
+    // Pre-existing public.users row already linked to the same Auth identity.
     mockUsersTable.push({
       id: "existing-user-uuid",
       email: "existing.admin@example.com",
       role: "user",
       active: true,
-      auth_user_id: null,
+      auth_user_id: "sb-new-uuid",
     });
+    mockIdentity.createLogin.mockResolvedValueOnce({ externalUid: "sb-new-uuid" });
 
     await onboardStaff(
       SUPER_ACTOR,

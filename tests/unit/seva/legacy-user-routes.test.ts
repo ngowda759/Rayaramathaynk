@@ -30,15 +30,59 @@ jest.mock("@/lib/seva/server/auth", () => {
 // ---- Supabase staff table --------------------------------------------------------------------------------------------
 type Row = Record<string, unknown>;
 const mockDb: { tables: Record<string, Row[]> } = { tables: {} };
+/** A SQL LIKE/ILIKE pattern (`%`, `_`, `\` escape) as a case-insensitive RegExp. */
+function likeToRegExp(pattern: string): RegExp {
+  let source = "^";
+  for (let i = 0; i < pattern.length; i += 1) {
+    const char = pattern[i];
+    if (char === "\\") {
+      i += 1;
+      source += (pattern[i] ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    } else if (char === "%") {
+      source += ".*";
+    } else if (char === "_") {
+      source += ".";
+    } else {
+      source += char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`${source}$`, "i");
+}
+
 function mockQuery(table: string) {
   const filters: ((row: Row) => boolean)[] = [];
   const run = () => ({ data: (mockDb.tables[table] ?? []).filter((row) => filters.every((keep) => keep(row))), error: null });
   const query = {
     select: () => query,
     update: (patch: Record<string, unknown>) => {
-      const rows = (mockDb.tables[table] ?? []).filter((row) => filters.every((keep) => keep(row)));
-      for (const row of rows) Object.assign(row, patch);
-      return query;
+      const updateFilters: ((row: Row) => boolean)[] = [];
+      let applied: { data: Row[]; error: null } | null = null;
+      const apply = () => {
+        if (applied) return applied;
+        const changed: Row[] = [];
+        for (const row of mockDb.tables[table] ?? []) {
+          if (updateFilters.every((keep) => keep(row))) {
+            Object.assign(row, patch);
+            changed.push({ ...row });
+          }
+        }
+        applied = { data: changed, error: null };
+        return applied;
+      };
+      const builder = {
+        eq: (column: string, value: unknown) => {
+          updateFilters.push((row) => row[column] === value);
+          return builder;
+        },
+        is: (column: string, value: unknown) => {
+          updateFilters.push((row) => (row[column] ?? null) === value);
+          return builder;
+        },
+        select: (_columns: string) => Promise.resolve(apply()),
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
+          Promise.resolve(apply()).then(resolve, reject),
+      };
+      return builder;
     },
     insert: async (vals: Record<string, unknown>) => {
       mockDb.tables[table] = mockDb.tables[table] ?? [];
@@ -47,6 +91,15 @@ function mockQuery(table: string) {
     },
     eq: (column: string, value: unknown) => {
       filters.push((row) => row[column] === value);
+      return query;
+    },
+    is: (column: string, value: unknown) => {
+      filters.push((row) => (row[column] ?? null) === value);
+      return query;
+    },
+    ilike: (column: string, pattern: string) => {
+      const match = likeToRegExp(pattern);
+      filters.push((row) => typeof row[column] === "string" && match.test(row[column] as string));
       return query;
     },
     maybeSingle: async () => ({ data: run().data[0] ?? null, error: null }),
@@ -312,6 +365,21 @@ describe("POST /api/admin/users/create-admin", () => {
 
     mockLogins["new.admin@example.org"] = "uid-existing";
     expect(await errorOf(await createAdmin(request("/api/admin/users/create-admin", body)))).toEqual({ status: 400, code: "validation" });
+    expect(mockIdentity.setAccessProfile).not.toHaveBeenCalled();
+  });
+
+  it("refuses to link a legacy unlinked users row by email, with no writes", async () => {
+    mockSession.actor = SUPER;
+    mockDb.tables.users = [
+      { id: "legacy-new-admin", email: "new.admin@example.org", auth_user_id: null, role: "devotee", active: true },
+    ];
+
+    expect(await errorOf(await createAdmin(request("/api/admin/users/create-admin", body)))).toMatchObject({
+      status: 400,
+      code: "validation",
+    });
+    expect(mockDb.tables.users[0].auth_user_id).toBeNull();
+    expect(mockSupabaseAdminAuth.createUser).not.toHaveBeenCalled();
     expect(mockIdentity.setAccessProfile).not.toHaveBeenCalled();
   });
 

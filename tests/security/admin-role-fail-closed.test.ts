@@ -1,17 +1,18 @@
 /**
  * @jest-environment node
  *
- * Phase 3.1 Review Finding 1 — Admin Role Promotion Fail-Closed Verification
+ * Admin role promotion (POST /api/admin/users/set-role) must fail closed and must never link or re-point a
+ * `public.users` row by email.
  *
- * Validates that /api/admin/users/set-role strictly fails closed on:
- * 1. Missing Supabase Auth Admin lookup/management service (500)
- * 2. Supabase Auth lookup failures (500)
- * 3. Supabase Auth creation / invitation failures (500)
- * 4. Invalid Supabase Auth UUIDs (500)
- * 5. Database update failures when syncing public.users.auth_user_id (500)
- * 6. Database identity mismatch between auth_user_id and Supabase Auth identity (500)
- * 7. Caller not authorized to grant super_admin (403)
- * 8. Ensures setAccountRole is NEVER executed on any failure, preventing unsafe role promotion.
+ * The identity is resolved from Supabase Auth and the authorization row by `auth_user_id`:
+ * 1. Missing Supabase Auth Admin lookup service -> 500
+ * 2. Supabase Auth lookup failure -> 500
+ * 3. No sign-in account for the email -> 404 (no provisioning, no linking)
+ * 4. A resolved identity that is not a UUID -> 500
+ * 5. No `public.users` row linked to that identity -> 404
+ * 6. The route never writes `public.users.auth_user_id` (no email-based linking)
+ * 7. Caller not authorized to grant super_admin -> 403
+ * 8. `setAccountRole` runs only for the row resolved by `auth_user_id`, never on a failure.
  */
 
 import { NextRequest } from "next/server";
@@ -50,6 +51,7 @@ const mockGetUserByEmail = jest.fn();
 const mockInviteUserByEmail = jest.fn();
 const mockCreateUser = jest.fn();
 const mockFrom = jest.fn();
+const mockUsersUpdate = jest.fn();
 
 let mockAdminAuthService: Record<string, unknown> | null = {
   getUserByEmail: mockGetUserByEmail,
@@ -66,11 +68,10 @@ jest.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
-const mockFindLoginByEmail = jest.fn();
 const mockGetAccessProfile = jest.fn();
 jest.mock("@/lib/seva/server/identity", () => ({
   getIdentityAdapter: () => ({
-    findLoginByEmail: mockFindLoginByEmail,
+    findLoginByEmail: jest.fn(),
     getAccessProfile: mockGetAccessProfile,
     verifyRequest: jest.fn(),
     createLogin: jest.fn(),
@@ -83,9 +84,19 @@ jest.mock("@/lib/seva/server/identity", () => ({
 import { POST as setRoleHandler } from "@/app/api/admin/users/set-role/route";
 import { setAccountRole } from "@/lib/seva/server/staff";
 
-describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
+describe("Admin role promotion — fail-closed identity resolution", () => {
   const validUuid = "99999999-9999-9999-9999-999999999999";
   const targetEmail = "promoted@example.test";
+
+  function staffQuery() {
+    return {
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }),
+    };
+  }
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -102,49 +113,21 @@ describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
       staffNo: 1,
       name: "Super Admin",
     };
-    mockGetUserByEmail.mockResolvedValue({
+    mockGetUserByEmail.mockReset().mockResolvedValue({
       data: { user: { id: validUuid, email: targetEmail } },
       error: null,
     });
-    mockFindLoginByEmail.mockResolvedValue({
-      externalUid: validUuid,
-      displayName: "Target User",
-      emailVerified: true,
-      disabled: false,
-    });
-    mockGetAccessProfile.mockResolvedValue({
-      role: "devotee",
-      isActive: true,
-    });
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "staff") {
-        return {
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              maybeSingle: jest.fn().mockResolvedValue({
-                data: null, // target is not staff yet
-                error: null,
-              }),
-            }),
-          }),
-        };
-      }
-      if (table === "users") {
-        return {
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
-                  data: { id: "user-1", auth_user_id: validUuid },
-                  error: null,
-                }),
-              }),
-            }),
-          }),
-        };
-      }
-      return {};
-    });
+    mockGetAccessProfile.mockReset().mockResolvedValue({ role: "devotee", isActive: true });
+    mockFrom.mockReset().mockImplementation((table: string) =>
+      table === "staff"
+        ? staffQuery()
+        : {
+            update: (...args: unknown[]) => {
+              mockUsersUpdate(...args);
+              return {};
+            },
+          },
+    );
   });
 
   function makeRequest(body: { email: string; role: string }) {
@@ -155,130 +138,60 @@ describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
     });
   }
 
-  it("1. Fails closed (500) and blocks role promotion when Auth Admin service is missing", async () => {
-    // The Supabase Auth Admin service is absent, so the identity lookup fails closed.
+  it("1. fails closed (500) when the Supabase Auth Admin service is missing", async () => {
     mockAdminAuthService = null;
 
     const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
     expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error.code).toBe("internal");
+    expect((await res.json()).error.code).toBe("internal");
     expect(setAccountRole).not.toHaveBeenCalled();
   });
 
-  it("2. Fails closed (500) and blocks role promotion when getUserByEmail throws an error in identity sync", async () => {
-    // 1st call for findLoginUid (Supabase) succeeds
-    mockGetUserByEmail
-      .mockResolvedValueOnce({ data: { user: { id: validUuid } }, error: null })
-      // 2nd call in requireAdminSupabaseIdentity fails
-      .mockResolvedValueOnce({ data: null, error: { message: "Auth service connection timeout" } });
+  it("2. fails closed (500) when the Supabase Auth lookup fails", async () => {
+    mockGetUserByEmail.mockReset().mockResolvedValue({ data: null, error: { message: "Auth service connection timeout" } });
 
     const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
     expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error.code).toBe("internal");
+    expect((await res.json()).error.code).toBe("internal");
     expect(setAccountRole).not.toHaveBeenCalled();
   });
 
-  it("3. Fails closed (500) and blocks role promotion when provisioning (invite and create) fails", async () => {
-    // findLoginUid (1st call) resolves the account; requireAdminSupabaseIdentity (2nd call) then
-    // sees no Supabase Auth account and attempts to provision one.
-    mockGetUserByEmail
-      .mockResolvedValueOnce({ data: { user: { id: validUuid } }, error: null })
-      .mockResolvedValueOnce({ data: { user: null }, error: null });
-    mockInviteUserByEmail.mockResolvedValueOnce({ data: null, error: { message: "Invite disabled" } });
-    mockCreateUser.mockResolvedValueOnce({ data: null, error: { message: "Create rejected" } });
+  it("3. answers not_found (404) and never provisions or links when the email has no sign-in", async () => {
+    mockGetUserByEmail.mockReset().mockResolvedValue({ data: { user: null }, error: null });
+
+    const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
+    expect(res.status).toBe(404);
+    expect(setAccountRole).not.toHaveBeenCalled();
+    expect(mockInviteUserByEmail).not.toHaveBeenCalled();
+    expect(mockCreateUser).not.toHaveBeenCalled();
+    expect(mockUsersUpdate).not.toHaveBeenCalled();
+  });
+
+  it("4. fails closed (500) when the resolved identity is not a UUID", async () => {
+    mockGetUserByEmail.mockReset().mockResolvedValue({ data: { user: { id: "non-uuid-string" } }, error: null });
 
     const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
     expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error.code).toBe("internal");
+    expect((await res.json()).error.code).toBe("internal");
     expect(setAccountRole).not.toHaveBeenCalled();
   });
 
-  it("4. Fails closed (500) and blocks role promotion when resolved identity is not a valid UUID", async () => {
-    mockGetUserByEmail
-      .mockResolvedValueOnce({ data: { user: { id: "non-uuid-string" } }, error: null })
-      .mockResolvedValueOnce({ data: { user: { id: "non-uuid-string" } }, error: null });
+  it("5. answers not_found (404) when no public.users row is linked to that identity", async () => {
+    mockGetAccessProfile.mockReset().mockResolvedValue(null);
 
     const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
-    expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error.code).toBe("internal");
+    expect(res.status).toBe(404);
     expect(setAccountRole).not.toHaveBeenCalled();
   });
 
-  it("5. Fails closed (500) and blocks role promotion when updating public.users.auth_user_id fails", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "staff") {
-        return {
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-            }),
-          }),
-        };
-      }
-      if (table === "users") {
-        return {
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
-                  data: null,
-                  error: { message: "Database connection lost" },
-                }),
-              }),
-            }),
-          }),
-        };
-      }
-      return {};
-    });
-
+  it("6. never writes public.users.auth_user_id by email", async () => {
     const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
-    expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error.code).toBe("internal");
-    expect(setAccountRole).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(mockFrom.mock.calls.every(([table]) => table !== "users")).toBe(true);
+    expect(mockUsersUpdate).not.toHaveBeenCalled();
   });
 
-  it("6. Fails closed (500) and blocks role promotion when database record contains mismatched auth_user_id", async () => {
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "staff") {
-        return {
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-            }),
-          }),
-        };
-      }
-      if (table === "users") {
-        return {
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnValue({
-                maybeSingle: jest.fn().mockResolvedValue({
-                  data: { id: "user-1", auth_user_id: "88888888-8888-8888-8888-888888888888" },
-                  error: null,
-                }),
-              }),
-            }),
-          }),
-        };
-      }
-      return {};
-    });
-
-    const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
-    expect(res.status).toBe(500);
-    const json = await res.json();
-    expect(json.error.code).toBe("internal");
-    expect(setAccountRole).not.toHaveBeenCalled();
-  });
-
-  it("7. Refuses a non-super-admin caller attempting to grant super_admin (403)", async () => {
+  it("7. refuses a non-super-admin caller granting super_admin (403)", async () => {
     mockSession.actor = {
       staffId: "0f6e2b1a-1c1d-4e5f-8a9b-000000000008",
       uid: "0f6e2b1a-1c1d-4e5f-8a9b-000000000008",
@@ -294,15 +207,15 @@ describe("Phase 3.1 — Admin Role Promotion Mandatory Fail-Closed", () => {
     expect(mockGetUserByEmail).not.toHaveBeenCalled();
   });
 
-  it("8. Successfully promotes user to admin only when identity verification and synchronization succeed", async () => {
+  it("8. promotes the row resolved by auth_user_id, never a row matched by email", async () => {
     const res = await setRoleHandler(makeRequest({ email: targetEmail, role: "admin" }));
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
     expect(json.userId).toBe(validUuid);
-    expect(setAccountRole).toHaveBeenCalledWith(
-      expect.objectContaining({ role: "super_admin" }),
-      { externalUid: validUuid, role: "admin" }
-    );
+    expect(setAccountRole).toHaveBeenCalledWith(expect.objectContaining({ role: "super_admin" }), {
+      externalUid: validUuid,
+      role: "admin",
+    });
   });
 });
