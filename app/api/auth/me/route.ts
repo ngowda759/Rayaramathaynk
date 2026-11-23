@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
+import { resolveVerifiedCaller } from "@/lib/auth/verify-id-token";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { EMAIL_CONFLICT_MESSAGE, provisionDevoteeRow } from "@/lib/auth/provisioning";
+import {
+  EMAIL_CONFLICT_MESSAGE,
+  EMAIL_NOT_VERIFIED_MESSAGE,
+  isConfirmedEmail,
+  provisionDevoteeRow,
+} from "@/lib/auth/provisioning";
 import type { UserProfile } from "@/types/user";
 
 const PROFILE_COLUMNS =
@@ -23,7 +28,8 @@ function mapRowToProfile(
     profileImage: "",
     isApproved: false,
     isActive: row.active !== false,
-    emailVerified: false,
+    // This route only reaches a profile after the confirmed-email gate above.
+    emailVerified: true,
     lastLogin: null,
     createdAt: row.created_at as any,
     updatedAt: row.updated_at as any,
@@ -32,49 +38,43 @@ function mapRowToProfile(
 
 export async function GET(request: NextRequest) {
   try {
-    const caller = await verifyBearerIdToken(request);
-    let callerUid = caller?.uid ?? null;
-    let callerEmail = caller?.email ?? null;
-
-    // If no bearer token, check Supabase cookie session
-    if (!callerUid) {
-      try {
-        const { createClient } = await import("@/lib/supabase/server");
-        const supabaseServer = await createClient();
-        const { data: userData } = await supabaseServer.auth.getUser();
-        if (userData?.user) {
-          callerUid = userData.user.id;
-          callerEmail = userData.user.email ?? null;
-        }
-      } catch {
-        // Cookie context unavailable or no session
-      }
+    const resolution = await resolveVerifiedCaller(request);
+    if (resolution.status === "unavailable") {
+      return NextResponse.json({ error: "Authentication provider error" }, { status: 503 });
     }
-
-    if (!callerUid) {
+    if (resolution.status !== "ok") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const caller = resolution.caller;
+    // Provisioning depends on the identity, so a confirmed address is required before any read.
+    if (!caller.email || !isConfirmedEmail(caller.emailConfirmedAt)) {
+      return NextResponse.json({ error: EMAIL_NOT_VERIFIED_MESSAGE }, { status: 403 });
+    }
+
     const supabase = createAdminClient();
-    // Supabase Auth is the only sign-in provider, so `callerUid` is always a Supabase Auth UUID. The
+    // Supabase Auth is the only sign-in provider, so `caller.uid` is always a Supabase Auth UUID. The
     // authorization row is matched on `auth_user_id` only: a row whose `id` happens to equal the Auth
     // UID has never been linked, and treating it as the caller's would be an implicit link.
     // The rules live in lib/auth/provisioning.ts so the OAuth callback cannot drift from this route.
     const outcome = await provisionDevoteeRow<ProfileRow>(supabase, {
-      uid: callerUid,
-      email: callerEmail,
-      displayName: callerEmail ? callerEmail.split("@")[0] : "Devotee",
+      uid: caller.uid,
+      email: caller.email,
+      emailConfirmedAt: caller.emailConfirmedAt,
+      displayName: caller.email.split("@")[0] || "Devotee",
       columns: PROFILE_COLUMNS,
     });
 
     switch (outcome.status) {
       case "linked":
       case "created":
-        return NextResponse.json(mapRowToProfile(outcome.row as Record<string, unknown>, callerEmail));
+        return NextResponse.json(mapRowToProfile(outcome.row as Record<string, unknown>, caller.email));
       case "conflict":
         // A row already carries this address but is not linked to this identity. Adopting it would be
         // an email-based link; duplicating it would strand the person's existing role and history.
         return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
+      case "unverified":
+        return NextResponse.json({ error: EMAIL_NOT_VERIFIED_MESSAGE }, { status: 403 });
       default:
         console.error("[api/auth/me] Provisioning failed");
         return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });

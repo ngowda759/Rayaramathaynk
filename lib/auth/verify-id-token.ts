@@ -21,6 +21,29 @@ import "server-only";
 export interface VerifiedCaller {
   uid: string;
   email: string | null;
+  /**
+   * Non-null only when Supabase reports a confirmed address. Provisioning routes require it:
+   * a valid token is authentication, but only a confirmed address proves mailbox ownership.
+   */
+  emailConfirmedAt: string | null;
+}
+
+/** The subset of a Supabase Auth user this module reads. */
+interface SupabaseAuthUserLike {
+  id: string;
+  email?: string | null;
+  email_confirmed_at?: string | null;
+  confirmed_at?: string | null;
+}
+
+function toVerifiedCaller(user: SupabaseAuthUserLike): VerifiedCaller {
+  const confirmed = user.email_confirmed_at ?? user.confirmed_at ?? null;
+  return {
+    uid: user.id,
+    email: typeof user.email === "string" ? user.email : null,
+    emailConfirmedAt:
+      typeof confirmed === "string" && confirmed.trim().length > 0 ? confirmed : null,
+  };
 }
 
 /** `invalid` covers a missing header too: either way there is no usable sign-in on this request. */
@@ -75,13 +98,7 @@ export async function checkBearerIdToken(request: Request, _options: VerifyIdTok
   try {
     const { data, error } = await supabase.auth.getUser(token);
     if (!error && data?.user) {
-      return {
-        status: "ok",
-        caller: {
-          uid: data.user.id,
-          email: typeof data.user.email === "string" ? data.user.email : null,
-        },
-      };
+      return { status: "ok", caller: toVerifiedCaller(data.user as SupabaseAuthUserLike) };
     }
     // A rejected token is the caller's problem, not a server outage; only a 5xx from Supabase is `unavailable`.
     if (isUnavailableStatus((error as { status?: unknown } | null)?.status)) {
@@ -101,4 +118,55 @@ export async function verifyBearerIdToken(
 ): Promise<VerifiedCaller | null> {
   const result = await checkBearerIdToken(request, options);
   return result.status === "ok" ? result.caller : null;
+}
+
+/**
+ * Resolve the caller from a verified Supabase Auth identity, accepting either an
+ * `Authorization: Bearer <access token>` header or the Supabase session cookie.
+ *
+ * A bearer token, when present, is the only credential considered: an invalid token never falls
+ * back to a cookie. The returned `emailConfirmedAt` comes from Supabase's own user record, so a
+ * caller can never assert confirmation in the request body or a decoded claim.
+ */
+export async function resolveVerifiedCaller(request: Request): Promise<IdTokenCheck> {
+  if (bearerToken(request)) {
+    return checkBearerIdToken(request);
+  }
+
+  let supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>;
+  try {
+    const { createClient } = await import("@/lib/supabase/server");
+    supabase = await createClient();
+  } catch {
+    // No cookie store (outside a request) or Supabase not configured: there is no usable sign-in.
+    return { status: "invalid" };
+  }
+
+  if (typeof supabase?.auth?.getUser !== "function") {
+    return { status: "invalid" };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      if (isUnavailableStatus((error as { status?: unknown } | null)?.status)) {
+        console.error("[resolveVerifiedCaller] Supabase Auth returned a server error");
+        return { status: "unavailable" };
+      }
+      return { status: "invalid" };
+    }
+
+    if (data?.user) {
+      return { status: "ok", caller: toVerifiedCaller(data.user as SupabaseAuthUserLike) };
+    }
+    return { status: "invalid" };
+  } catch (error) {
+    // Auth-js returns `AuthSessionMissingError` as a result, so a thrown call is a network or
+    // verification-service failure rather than a missing/rejected session.
+    console.error(
+      "[resolveVerifiedCaller] cookie-session verification unavailable:",
+      error instanceof Error ? error.message : error
+    );
+    return { status: "unavailable" };
+  }
 }

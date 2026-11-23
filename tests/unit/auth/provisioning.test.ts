@@ -52,17 +52,37 @@ function insertQuery(data: Row | null, error: unknown = null) {
   };
 }
 
-function provision() {
+function provision(
+  overrides: Partial<{ email: string | null; emailConfirmedAt: string | null }> = {}
+) {
   return provisionDevoteeRow<Row>({ from: (...args: unknown[]) => mockFrom(...args) } as never, {
     uid: UID,
     email: EMAIL,
+    emailConfirmedAt: "2026-01-01T00:00:00Z",
     displayName: "Devotee",
     columns: COLUMNS,
+    ...overrides,
   });
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+describe("confirmed-email gate", () => {
+  it("refuses an unconfirmed identity before any database read", async () => {
+    const outcome = await provision({ emailConfirmedAt: null });
+
+    expect(outcome).toEqual({ status: "unverified" });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("refuses a confirmed identity that has no email address", async () => {
+    const outcome = await provision({ email: null });
+
+    expect(outcome).toEqual({ status: "unverified" });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
 });
 
 describe("Case A — a row already linked to this auth_user_id", () => {

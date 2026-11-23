@@ -192,6 +192,7 @@ describe("Phase 3 Cutover Rehearsal: Complete Verification Suite", () => {
       expect(caller).toEqual({
         uid: "550e8400-e29b-41d4-a716-446655440000",
         email: "admin@example.org",
+        emailConfirmedAt: null,
       });
     });
 

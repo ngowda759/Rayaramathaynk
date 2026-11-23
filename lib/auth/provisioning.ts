@@ -19,6 +19,18 @@ import { escapeLikePattern, quoteFilterValue } from "@/lib/supabase/filters";
 export const EMAIL_CONFLICT_MESSAGE =
   "An account with this email already exists and cannot be claimed automatically. Please contact the temple office.";
 
+/** Denial for an authenticated identity whose address Supabase has not confirmed (or has none). */
+export const EMAIL_NOT_VERIFIED_MESSAGE =
+  "Email verification is required before this account can be provisioned";
+
+/**
+ * True only when Supabase reports a confirmed address. A valid sign-in is not enough: provisioning
+ * requires proof of mailbox ownership, and phone-only identities are deliberately not admitted.
+ */
+export function isConfirmedEmail(emailConfirmedAt: string | null | undefined): boolean {
+  return typeof emailConfirmedAt === "string" && emailConfirmedAt.trim().length > 0;
+}
+
 /** PostgreSQL unique-violation (SQLSTATE 23505), plus the PostgREST text fallback. */
 export function isUniqueViolation(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -105,23 +117,37 @@ export async function findOwnedRowAfterConflict<Row extends { auth_user_id: stri
  * that every self-provisioning entry point (the session route and the OAuth callback) behaves the
  * same way.
  *
- * - `linked`   — a row already carries this `auth_user_id`. No write; the caller's own row.
- * - `created`  — no row existed and none held this address, so a `devotee` row was inserted.
- * - `conflict` — the address is held by an unlinked or foreign-owned row. No write; nothing is
- *                returned, because returning that row would be the prohibited email-based link.
- * - `error`    — the check or the write failed. Callers fail closed.
+ * - `linked`     — a row already carries this `auth_user_id`. No write; the caller's own row.
+ * - `created`    — no row existed and none held this address, so a `devotee` row was inserted.
+ * - `conflict`   — the address is held by an unlinked or foreign-owned row. No write; nothing is
+ *                  returned, because returning that row would be the prohibited email-based link.
+ * - `unverified` — the identity has no confirmed email. No read and no write.
+ * - `error`      — the check or the write failed. Callers fail closed.
  */
 export type DevoteeProvisionOutcome<Row> =
   | { status: "linked"; row: Row }
   | { status: "created"; row: Row }
   | { status: "conflict" }
+  | { status: "unverified" }
   | { status: "error" };
 
 export async function provisionDevoteeRow<Row extends { auth_user_id: string | null }>(
   supabase: SupabaseClient,
-  params: { uid: string; email: string | null; displayName: string; columns: string }
+  params: {
+    uid: string;
+    email: string | null;
+    emailConfirmedAt: string | null | undefined;
+    displayName: string;
+    columns: string;
+  }
 ): Promise<DevoteeProvisionOutcome<Row>> {
-  const { uid, email, displayName, columns } = params;
+  const { uid, email, emailConfirmedAt, displayName, columns } = params;
+
+  // A confirmed address is required before any identity-dependent read. This mirrors every
+  // provisioning route and keeps the rule in one place for future callers.
+  if (!email || !isConfirmedEmail(emailConfirmedAt)) {
+    return { status: "unverified" };
+  }
 
   const { data: own, error: ownError } = await supabase
     .from("users")

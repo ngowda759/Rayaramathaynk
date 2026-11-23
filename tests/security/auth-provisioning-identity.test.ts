@@ -17,7 +17,7 @@
 import { NextRequest } from "next/server";
 import { POST as registerHandler } from "@/app/api/auth/register/route";
 import { GET as meHandler } from "@/app/api/auth/me/route";
-import { POST as profileHandler } from "@/app/api/auth/profile/route";
+import { GET as profileGetHandler, POST as profileHandler } from "@/app/api/auth/profile/route";
 
 const mockGetUserById = jest.fn();
 const mockGetUser = jest.fn();
@@ -38,8 +38,9 @@ jest.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 
+const mockServerCreateClient = jest.fn();
 jest.mock("@/lib/supabase/server", () => ({
-  createClient: jest.fn().mockRejectedValue(new Error("no cookie session in test")),
+  createClient: (...args: unknown[]) => mockServerCreateClient(...args),
 }));
 
 const CALLER_UID = "33333333-3333-3333-3333-333333333333";
@@ -54,15 +55,37 @@ function stubIdentity(emailConfirmedAt: string | null, email = EMAIL) {
 }
 
 /** Bearer-token verification used by every route here. */
-function stubCaller(email = EMAIL) {
-  mockGetUser.mockResolvedValueOnce({ data: { user: { id: CALLER_UID, email } }, error: null });
+function stubCaller(
+  email: string | null = EMAIL,
+  emailConfirmedAt: string | null = "2026-01-01T00:00:00Z"
+) {
+  mockGetUser.mockResolvedValueOnce({
+    data: { user: { id: CALLER_UID, email, email_confirmed_at: emailConfirmedAt } },
+    error: null,
+  });
 }
 
-function registerRequest() {
+function registerRequest(body: Record<string, unknown> = { userId: CALLER_UID, email: EMAIL, name: "Devotee" }) {
   return new NextRequest("http://localhost/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
+    body: JSON.stringify(body),
+  });
+}
+
+function unauthenticatedRegisterRequest() {
+  return new NextRequest("http://localhost/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId: CALLER_UID, email: EMAIL, name: "Devotee" }),
+  });
+}
+
+function profilePostRequest(body: Record<string, unknown> = { email: EMAIL, name: "Devotee" }) {
+  return new NextRequest("http://localhost/api/auth/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer token" },
+    body: JSON.stringify(body),
   });
 }
 
@@ -70,6 +93,10 @@ function authedRequest(path: string) {
   return new NextRequest(`http://localhost${path}`, {
     headers: { Authorization: "Bearer token" },
   });
+}
+
+function anonymousRequest(path: string, init?: RequestInit) {
+  return new NextRequest(`http://localhost${path}`, init);
 }
 
 /** `.select(...).or(...)` returning a fixed row list. */
@@ -105,6 +132,8 @@ function selectEqMaybeSingle(data: unknown, error: unknown = null) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockServerCreateClient.mockReset();
+  mockServerCreateClient.mockRejectedValue(new Error("no cookie session in test"));
 });
 
 describe("S2 — register never links an existing row by email", () => {
@@ -232,6 +261,7 @@ describe("S3 — /api/auth/me resolves only by auth_user_id", () => {
     const body = await res.json();
     expect(body.role).toBe("devotee");
     expect(body.email).toBe(EMAIL);
+    expect(body.emailVerified).toBe(true);
   });
 
   it("fails closed when the email conflict check errors", async () => {
@@ -322,6 +352,224 @@ describe("S4 — 23505 race recovery never adopts a foreign row", () => {
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toMatch(/cannot be claimed automatically/i);
+  });
+});
+
+describe("B3 — verified Supabase identity is required for provisioning", () => {
+  const OTHER_UID = "44444444-4444-4444-4444-444444444444";
+
+  it("rejects unauthenticated registration even with a valid UUID and email", async () => {
+    const res = await registerHandler(unauthenticatedRegisterRequest());
+
+    expect(res.status).toBe(401);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a caller that supplies another user's UUID", async () => {
+    stubCaller();
+
+    const res = await registerHandler(
+      registerRequest({ userId: OTHER_UID, email: EMAIL, name: "Attacker" })
+    );
+
+    expect(res.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unverified register identity before any database read", async () => {
+    stubCaller();
+    stubIdentity(null);
+
+    const res = await registerHandler(registerRequest());
+
+    expect(res.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unverified /api/auth/me caller before any database read", async () => {
+    stubCaller(EMAIL, null);
+
+    const res = await meHandler(authedRequest("/api/auth/me"));
+
+    expect(res.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unverified /api/auth/profile read before any database read", async () => {
+    stubCaller(EMAIL, null);
+
+    const res = await profileGetHandler(authedRequest("/api/auth/profile"));
+
+    expect(res.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unverified /api/auth/profile write before any database read", async () => {
+    stubCaller(EMAIL, null);
+
+    const res = await profileHandler(profilePostRequest());
+
+    expect(res.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a confirmed identity that has no email address", async () => {
+    stubCaller(null);
+    stubIdentity("2026-01-01T00:00:00Z", null);
+
+    const res = await registerHandler(registerRequest());
+
+    expect(res.status).toBe(403);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("does not let a request-body email override the verified address", async () => {
+    stubCaller();
+
+    const res = await registerHandler(
+      registerRequest({ userId: CALLER_UID, email: "someone.else@example.test", name: "Attacker" })
+    );
+
+    expect(res.status).toBe(400);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("provisions a verified identity with the authenticated uid and email", async () => {
+    stubCaller();
+    stubIdentity("2026-01-01T00:00:00Z");
+    mockFrom.mockReturnValueOnce(selectOrReturns([]));
+    const insert = jest.fn().mockResolvedValue({ error: null });
+    mockFrom.mockReturnValueOnce({ insert });
+
+    const res = await registerHandler(registerRequest());
+
+    expect(res.status).toBe(200);
+    expect(insert.mock.calls[0][0]).toMatchObject({
+      auth_user_id: CALLER_UID,
+      email: EMAIL,
+      role: "devotee",
+    });
+  });
+
+  it("remains idempotent for the same authenticated uid", async () => {
+    stubCaller();
+    stubIdentity("2026-01-01T00:00:00Z");
+    mockFrom.mockReturnValueOnce(
+      selectOrReturns([{ id: "row-1", auth_user_id: CALLER_UID, email: EMAIL, role: "devotee" }])
+    );
+
+    const res = await registerHandler(registerRequest());
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toMatch(/already provisioned/i);
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a different uid claim an existing profile", async () => {
+    stubCaller();
+    stubIdentity("2026-01-01T00:00:00Z");
+    mockFrom.mockReturnValueOnce(
+      selectOrReturns([{ id: "row-other", auth_user_id: OTHER_UID, email: EMAIL }])
+    );
+
+    const res = await registerHandler(registerRequest());
+
+    expect(res.status).toBe(409);
+    expect(mockFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not touch the database when identity verification is unavailable", async () => {
+    mockGetUser.mockRejectedValueOnce(new Error("auth down"));
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await registerHandler(registerRequest());
+
+    expect(res.status).toBe(503);
+    expect(mockFrom).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+});
+
+describe("cookie-session verification failures never provision", () => {
+  function cookieClient(getUser: jest.Mock) {
+    mockServerCreateClient.mockResolvedValueOnce({ auth: { getUser } });
+  }
+
+  it("an invalid cookie session returns 401 and performs no DB read on /api/auth/me", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "Auth session missing!", name: "AuthSessionMissingError", status: 400 },
+      })
+    );
+
+    const res = await meHandler(anonymousRequest("/api/auth/me"));
+
+    expect(res.status).toBe(401);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("a cookie-session 5xx returns 503 and performs no DB read on /api/auth/me", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "down", status: 503 },
+      })
+    );
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await meHandler(anonymousRequest("/api/auth/me"));
+
+    expect(res.status).toBe(503);
+    expect(mockFrom).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("a cookie-session verification exception returns 503 and performs no DB write on register", async () => {
+    cookieClient(jest.fn().mockRejectedValueOnce(new Error("fetch failed")));
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await registerHandler(unauthenticatedRegisterRequest());
+
+    expect(res.status).toBe(503);
+    expect(mockFrom).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("an invalid cookie session returns 401 and performs no DB write on register", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "invalid JWT", status: 401 },
+      })
+    );
+
+    const res = await registerHandler(unauthenticatedRegisterRequest());
+
+    expect(res.status).toBe(401);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("a cookie-session 5xx returns 503 and performs no DB write on profile POST", async () => {
+    cookieClient(
+      jest.fn().mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: "down", status: 503 },
+      })
+    );
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const res = await profileHandler(
+      anonymousRequest("/api/auth/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      })
+    );
+
+    expect(res.status).toBe(503);
+    expect(mockFrom).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
 
