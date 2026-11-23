@@ -52,7 +52,7 @@ function GuardedSeva({ children }: SevaModuleShellProps) {
   const search = useSearchParams()?.toString() ?? "";
   const returnTo = search ? `${pathname}?${search}` : pathname;
   return (
-    <AdminAuthGuard requiredPermission="billing" returnTo={returnTo} allowSignedInNonAdmin>
+    <AdminAuthGuard requiredPermission="admin" returnTo={returnTo} allowSignedInNonAdmin>
       <SevaMeProvider>
         <SevaMotion>
           <div className="seva">

@@ -416,8 +416,8 @@ describe("AdminAuthGuard seva permissions", () => {
   it("lets only the right seva roles through and keeps the existing cases as they were", async () => {
     const AdminAuthGuard = (await import("@/components/admin/layout/AdminAuthGuard")).default;
     type Perm = Parameters<typeof AdminAuthGuard>[0]["requiredPermission"];
-    const allowed = async (sevaRole: SevaRole | null, permission: Perm): Promise<boolean> => {
-      mockAuth = signedIn(sevaRole);
+    const allowed = async (sevaRole: SevaRole | null, permission: Perm, extra: AuthValue = {}): Promise<boolean> => {
+      mockAuth = signedIn(sevaRole, extra);
       mockReplace.mockClear();
       const { unmount } = render(
         <AdminAuthGuard requiredPermission={permission}>
@@ -438,8 +438,10 @@ describe("AdminAuthGuard seva permissions", () => {
     expect(await allowed("temple_admin", "sevaAdmin")).toBe(true);
     expect(await allowed("receptionist", "sevaAdmin")).toBe(false);
     expect(await allowed(null, "sevaCounter")).toBe(false);
-    // Existing cases unchanged: anyone who can open the admin console passes "billing".
-    expect(await allowed(null, "billing")).toBe(true);
+    // The seva shell uses "admin" (any console role); "billing" is now the real finance capability.
+    expect(await allowed(null, "admin")).toBe(true);
+    expect(await allowed(null, "billing")).toBe(false);
+    expect(await allowed(null, "billing", { canAccessBilling: true })).toBe(true);
   });
 });
 

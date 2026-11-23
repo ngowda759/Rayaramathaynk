@@ -18,6 +18,11 @@ import {
 import { UserProfile, UserRole, normalizeRole, NormalizedRole } from "@/types/user";
 import { mapFirestoreRole } from "@/lib/seva/permissions";
 import type { SevaRole } from "@/types/seva";
+import {
+  adminCan,
+  deriveAdminPermissions,
+  type AdminCapability,
+} from "@/lib/auth/admin-capability-policy";
 
 export interface AuthUser {
   id: string;
@@ -58,6 +63,8 @@ interface AuthContextType {
   canManageUsers: boolean;
   canAccessBilling: boolean;
   canAccessAdministration: boolean;
+  /** Fine-grained check using the same policy the API enforces (UI only). */
+  can: (capability: AdminCapability) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(
@@ -222,15 +229,17 @@ export function AuthProvider({
   // Role-based permissions
   const normalizedRole = profile?.role ? normalizeRole(profile.role as UserRole) : "devotee";
   
-  // Super Admin: Access to everything
-  // Temple Admin: All except Finance and Administration
-  // Billing: Only Finance module
-  const canAccessAdmin = normalizedRole !== "devotee" && normalizedRole !== "volunteer";
-  const canAccessSettings = normalizedRole === "super_admin" || normalizedRole === "admin";
-  const canAccessFinance = normalizedRole === "super_admin" || normalizedRole === "billing";
-  const canManageUsers = normalizedRole === "super_admin";
-  const canAccessBilling = normalizedRole === "super_admin" || normalizedRole === "billing";
-  const canAccessAdministration = normalizedRole === "super_admin";
+  // The admin UI derives its flags from the same policy the API enforces, so a
+  // hidden module and a 403 cannot disagree about the role map.
+  const {
+    canAccessAdmin,
+    canAccessSettings,
+    canAccessFinance,
+    canManageUsers,
+    canAccessBilling,
+    canAccessAdministration,
+  } = deriveAdminPermissions(profile?.role);
+  const can = (capability: AdminCapability) => adminCan(profile?.role, capability);
   const sevaRole = mapFirestoreRole(profile?.role);
 
   return (
@@ -252,6 +261,7 @@ export function AuthProvider({
         canManageUsers,
         canAccessBilling,
         canAccessAdministration,
+        can,
       }}
     >
       {children}
