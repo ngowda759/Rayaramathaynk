@@ -1,97 +1,168 @@
+/**
+ * B2 regression: the retired static ADMIN_API_KEY bypass and ID-based authorization.
+ *
+ * These tests exercise the canonical admin guard (`verifyAdminUserResult`), which is the
+ * only authorization path left for the site-settings server actions. Supabase Auth is the
+ * sole identity; `public.users.auth_user_id` is the sole authorization link.
+ */
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
-import { checkAdminAuth } from '../../lib/auth/admin';
+import { verifyAdminUserResult } from '../../lib/auth/admin-auth';
 
-// Supabase Auth is the only identity provider.
+jest.mock('server-only', () => ({}), { virtual: true });
+
+const mockUsersTable: Array<Record<string, unknown>> = [];
 const mockGetUser = jest.fn();
+
 jest.mock('../../lib/supabase/admin', () => ({
   createAdminClient: () => ({
     auth: { getUser: (...args: unknown[]) => mockGetUser(...args) },
+    from: (table: string) => {
+      if (table !== 'users') throw new Error(`unexpected table ${table}`);
+      let column = '';
+      let value: unknown;
+      const builder = {
+        select: () => builder,
+        eq: (nextColumn: string, nextValue: unknown) => {
+          column = nextColumn;
+          value = nextValue;
+          return builder;
+        },
+        maybeSingle: async () => ({
+          data: mockUsersTable.find((row) => row[column] === value) ?? null,
+          error: null,
+        }),
+      };
+      return builder;
+    },
   }),
 }));
 
-describe('Admin Authentication Check', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    process.env.NODE_ENV = 'test';
+function makeRequest(authHeader: string | null) {
+  return {
+    headers: {
+      get: (name: string) => (name.toLowerCase() === 'authorization' ? authHeader : null),
+    },
+  } as any;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockUsersTable.length = 0;
+});
+
+describe('retired static ADMIN_API_KEY bypass', () => {
+  const originalApiKey = process.env.ADMIN_API_KEY;
+
+  afterEach(() => {
+    if (originalApiKey === undefined) delete process.env.ADMIN_API_KEY;
+    else process.env.ADMIN_API_KEY = originalApiKey;
   });
 
-  const createMockRequest = (authHeader: string | null) => {
-    return {
-      headers: {
-        get: (key: string) => key === 'authorization' ? authHeader : null
-      }
-    } as any;
-  };
+  it('rejects a bearer token equal to ADMIN_API_KEY', async () => {
+    process.env.ADMIN_API_KEY = 'legacy-static-key';
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: 'invalid JWT' } });
 
-  it('rejects missing auth header', async () => {
-    const req = createMockRequest(null);
-    const result = await checkAdminAuth(req);
-    expect(result).toBeNull();
+    const result = await verifyAdminUserResult(makeRequest('Bearer legacy-static-key'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('invalid_token');
+    expect(JSON.stringify(result)).not.toContain('api-admin');
   });
 
-  it('rejects invalid bearer token format', async () => {
-    const req = createMockRequest('Basic xyz');
-    const result = await checkAdminAuth(req);
-    expect(result).toBeNull();
+  it('does not synthesize an api-admin identity from the static key', async () => {
+    process.env.ADMIN_API_KEY = 'legacy-static-key';
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: 'invalid JWT' } });
+
+    const result = await verifyAdminUserResult(makeRequest('Bearer legacy-static-key'));
+
+    // A rejected guard result carries no authenticated user at all.
+    expect(result).not.toHaveProperty('user');
   });
 
-  it('rejects when token is empty', async () => {
-    const req = createMockRequest('Bearer ');
-    const result = await checkAdminAuth(req);
-    expect(result).toBeNull();
+  it('rejects the literal api-admin token when Supabase does not recognize it', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: { message: 'invalid JWT' } });
+
+    const result = await verifyAdminUserResult(makeRequest('Bearer api-admin'));
+
+    expect(result.ok).toBe(false);
   });
+});
 
-  it('rejects when token verification fails', async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Invalid token' } });
-    const req = createMockRequest('Bearer invalid-token');
-    const result = await checkAdminAuth(req);
-    expect(result).toBeNull();
-  });
-
-  it('resolves valid tokens', async () => {
-    mockGetUser.mockResolvedValueOnce({ data: { user: { id: 'user-123', email: 'u@example.test' } }, error: null });
-    const req = createMockRequest('Bearer valid-token');
-    const result = await checkAdminAuth(req);
-    expect(result).toEqual({ uid: 'user-123', role: 'user', email: 'u@example.test' });
-  });
-
-  describe('ADMIN_API_KEY bypass behavior', () => {
-    let originalApiKey: string | undefined;
-
-    beforeEach(() => {
-      originalApiKey = process.env.ADMIN_API_KEY;
+describe('ID-based identity cannot authorize', () => {
+  it('denies a Supabase uid that matches users.id but not auth_user_id', async () => {
+    mockUsersTable.push({
+      id: 'attacker-uid',
+      auth_user_id: 'someone-else',
+      role: 'admin',
+      active: true,
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'attacker-uid', email: 'attacker@example.test' } },
+      error: null,
     });
 
-    afterEach(() => {
-      if (originalApiKey === undefined) {
-        delete process.env.ADMIN_API_KEY;
-      } else {
-        process.env.ADMIN_API_KEY = originalApiKey;
-      }
-    });
+    const result = await verifyAdminUserResult(makeRequest('Bearer valid-token'));
 
-    it('rejects tokens when ADMIN_API_KEY is not set', async () => {
-      delete process.env.ADMIN_API_KEY;
-      mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Invalid token fallback' } });
-      const req = createMockRequest('Bearer some-random-string');
-      const result = await checkAdminAuth(req);
-      expect(result).toBeNull();
-    });
-
-    it('rejects incorrect tokens when ADMIN_API_KEY is set', async () => {
-      process.env.ADMIN_API_KEY = 'secret-key';
-      mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: { message: 'Invalid token fallback' } });
-      const req = createMockRequest('Bearer wrong-key');
-      const result = await checkAdminAuth(req);
-      expect(result).toBeNull();
-    });
-
-    it('resolves standard server-side token when ADMIN_API_KEY is set', async () => {
-      process.env.ADMIN_API_KEY = 'secret-key';
-      const req = createMockRequest('Bearer secret-key');
-      const result = await checkAdminAuth(req);
-      expect(result).toEqual({ uid: 'api-admin', role: 'admin' });
-    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('user_not_found');
   });
 
+  it('denies a Supabase uid that matches firestore_id but not auth_user_id', async () => {
+    mockUsersTable.push({
+      id: 'row-uuid',
+      firestore_id: 'attacker-uid',
+      auth_user_id: 'someone-else',
+      role: 'admin',
+      active: true,
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'attacker-uid', email: 'attacker@example.test' } },
+      error: null,
+    });
+
+    const result = await verifyAdminUserResult(makeRequest('Bearer valid-token'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('user_not_found');
+  });
+
+  it('authorizes a Supabase uid linked through auth_user_id', async () => {
+    mockUsersTable.push({
+      id: 'row-uuid',
+      auth_user_id: 'real-uid',
+      role: 'super_admin',
+      active: true,
+      email: 'admin@example.test',
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'real-uid', email: 'admin@example.test' } },
+      error: null,
+    });
+
+    const result = await verifyAdminUserResult(makeRequest('Bearer valid-token'));
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.user.uid).toBe('real-uid');
+      expect(result.user.role).toBe('super_admin');
+    }
+  });
+
+  it('still denies an inactive linked admin', async () => {
+    mockUsersTable.push({
+      id: 'row-uuid',
+      auth_user_id: 'real-uid',
+      role: 'admin',
+      active: false,
+    });
+    mockGetUser.mockResolvedValue({
+      data: { user: { id: 'real-uid', email: 'admin@example.test' } },
+      error: null,
+    });
+
+    const result = await verifyAdminUserResult(makeRequest('Bearer valid-token'));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('inactive_user');
+  });
 });

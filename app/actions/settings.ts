@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { SiteSettingsPayload } from "@/types/settings";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
-import { checkAdminAuth, isUserAdmin } from "@/lib/auth/admin";
+import { verifyAdminUserResult } from "@/lib/auth/admin-auth";
 import { z } from "zod";
 
 const settingsSchema = z.object({
@@ -20,19 +20,18 @@ const settingsUpdateSchema = settingsSchema.partial();
 const idSchema = z.string().uuid("Invalid ID format");
 
 /**
- * Verifies if the incoming request comes from an authorized admin.
- * Includes a bypass for `api-admin` meant solely for standard server-side script integrations.
+ * Authorizes a settings server action with the shared admin guard.
+ *
+ * A browser-invoked action carries the Supabase session cookie and no Authorization
+ * header; a server-side script may present a Supabase access token as a bearer. Either
+ * way the guard verifies the Supabase Auth identity and resolves the authorization
+ * record from `public.users` by `auth_user_id`.
  */
 async function verifyAdminForAction(): Promise<boolean> {
   const headersList = await headers();
   const req = new NextRequest("http://localhost", { headers: headersList });
-  const auth = await checkAdminAuth(req);
-  if (!auth) return false;
-
-  // Standard API key integration for internal server scripts and automated bots.
-  if (auth.uid === "api-admin") return true;
-
-  return await isUserAdmin(auth.uid);
+  const result = await verifyAdminUserResult(req);
+  return result.ok;
 }
 
 export async function createSettingsAction(payload: SiteSettingsPayload): Promise<string> {
