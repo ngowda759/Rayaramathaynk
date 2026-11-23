@@ -162,38 +162,70 @@ describe("rejecting bad callback input", () => {
 });
 
 describe("open-redirect protection", () => {
+  beforeEach(() => {
+    exchangeReturns({ id: UID, email: EMAIL, email_confirmed_at: "2026-01-01T00:00:00Z" });
+    mockProvisionDevoteeRow.mockResolvedValue({
+      status: "linked",
+      row: { id: "row-1", auth_user_id: UID },
+    });
+  });
+
   it.each([
     ["an absolute external URL", "https%3A%2F%2Fevil.example"],
+    ["an http URL", "http%3A%2F%2Fevil.example"],
     ["a protocol-relative URL", "%2F%2Fevil.example"],
+    ["a triple-slash URL", "%2F%2F%2Fevil.example"],
     ["a javascript: URL", "javascript%3Aalert(1)"],
+    ["a data: URL", "data%3Atext%2Fhtml%2C%3Cscript%3Ealert(1)%3C%2Fscript%3E"],
     ["a backslash trick", "%2F%5Cevil.example"],
+    ["a double-backslash trick", "%5C%5Cevil.example"],
     ["a dot segment that normalises to //host", "%2F.%2F%2Fevil.example"],
+    ["a dot-dot path that escapes via //host", "%2Fseva%2F..%2F..%2F%2Fevil.example"],
+    ["a double-encoded protocol-relative URL", "%2F%252F%252Fevil.example"],
+    ["a control character", "%2Fseva%00"],
   ])("does not follow %s after a successful sign-in", async (_label, encodedNext) => {
-    exchangeReturns({ id: UID, email: EMAIL, email_confirmed_at: "2026-01-01T00:00:00Z" });
-    mockProvisionDevoteeRow.mockResolvedValue({ status: "linked", row: { id: "row-1", auth_user_id: UID } });
-
     const response = await GET(callbackRequest(`?code=abc123&next=${encodedNext}`));
 
     expect(response.status).toBe(307);
     const location = locationOf(response);
     expect(location.origin).toBe(ORIGIN);
     expect(location.pathname).toBe("/");
+    expect(location.search).toBe("");
+    expect(location.hash).toBe("");
   });
 
   it("follows an approved internal path", async () => {
-    exchangeReturns({ id: UID, email: EMAIL, email_confirmed_at: "2026-01-01T00:00:00Z" });
-    mockProvisionDevoteeRow.mockResolvedValue({ status: "linked", row: { id: "row-1", auth_user_id: UID } });
-
     const response = await GET(callbackRequest("?code=abc123&next=%2Fprofile"));
 
     expect(locationOf(response).pathname).toBe("/profile");
   });
 
-  it("lands on / when no next is given", async () => {
-    exchangeReturns({ id: UID, email: EMAIL, email_confirmed_at: "2026-01-01T00:00:00Z" });
-    mockProvisionDevoteeRow.mockResolvedValue({ status: "linked", row: { id: "row-1", auth_user_id: UID } });
+  it("preserves an internal path with a query string", async () => {
+    const response = await GET(callbackRequest("?code=abc123&next=%2Fseva%3Fstatus%3Dchanged"));
 
+    const location = locationOf(response);
+    expect(location.origin).toBe(ORIGIN);
+    expect(location.pathname).toBe("/seva");
+    expect(location.search).toBe("?status=changed");
+  });
+
+  it("preserves an internal path with a fragment", async () => {
+    const response = await GET(callbackRequest("?code=abc123&next=%2Fprofile%23bookings"));
+
+    const location = locationOf(response);
+    expect(location.origin).toBe(ORIGIN);
+    expect(location.pathname).toBe("/profile");
+    expect(location.hash).toBe("#bookings");
+  });
+
+  it("lands on / when no next is given", async () => {
     const response = await GET(callbackRequest("?code=abc123"));
+
+    expect(locationOf(response).pathname).toBe("/");
+  });
+
+  it("lands on / when next is empty", async () => {
+    const response = await GET(callbackRequest("?code=abc123&next="));
 
     expect(locationOf(response).pathname).toBe("/");
   });
