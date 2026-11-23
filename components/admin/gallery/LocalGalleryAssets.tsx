@@ -6,6 +6,7 @@ import { Clipboard, Trash2, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminFetch } from "@/hooks/useAdminFetch";
 import { galleryService } from "@/services/gallery.service";
 
 interface LocalAsset {
@@ -31,6 +32,7 @@ export default function LocalGalleryAssets({
   onAdd,
 }: LocalGalleryAssetsProps) {
   const { user } = useAuth();
+  const adminFetch = useAdminFetch();
   const [deleting, setDeleting] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
 
@@ -44,7 +46,7 @@ export default function LocalGalleryAssets({
     }
     setDeleting(src);
     try {
-      const response = await fetch("/api/gallery/local-assets", {
+      const response = await adminFetch("/api/gallery/local-assets", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ src }),
