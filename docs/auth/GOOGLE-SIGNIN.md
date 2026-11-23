@@ -1,9 +1,44 @@
 # Google Sign-In — Implementation Plan
 
-**Status:** Planned. **Not implemented. Not configured. Not enabled.**
-**Date:** 2026-11-20 (revised: Phase 0 security findings added)
-**Scope:** Documentation only. This document describes an intended change; no application code,
-migration, Supabase setting or Google Cloud resource exists yet.
+**Status:** Code implemented on `feat/google-signin`. **Provider not configured. Not enabled.**
+**Date:** 2026-11-20 (revised: implementation landed; provider activation still deferred)
+**Scope:** The application code, tests and documentation for PR 2 and PR 3 of §8 now exist
+(`app/auth/callback/route.ts`, `lib/auth/oauth.ts`, `components/auth/GoogleSignInButton.tsx`, the
+shared `provisionDevoteeRow` helper, CSP and robots changes). **Nothing is enabled**: the Google
+provider is still off in the Supabase project, no Google Cloud OAuth client exists, no Vercel secret
+was added and no migration was introduced. See §19 for what must still happen before this document
+may say "enabled".
+
+### 0.1 What is implemented, and what is still off
+
+| Piece | State | Where |
+| --- | --- | --- |
+| PKCE callback (exchange, provisioning, safe redirect) | **Implemented**, inert until a provider exists | `app/auth/callback/route.ts` |
+| OAuth initiation + callback-URL builder + feature flag | **Implemented** | `lib/auth/oauth.ts` |
+| "Continue with Google" button on `/login` and `/register` | **Implemented**, hidden unless the flag is `"true"` | `components/auth/GoogleSignInButton.tsx` |
+| Shared devotee provisioning (used by `/api/auth/me` and the callback) | **Implemented** | `lib/auth/provisioning.ts` → `provisionDevoteeRow` |
+| `img-src https://*.googleusercontent.com` (CSP + `next/image`) | **Implemented** | `proxy.ts`, `next.config.ts` |
+| `/auth/` in `robots.txt` disallow | **Implemented** | `app/robots.ts` |
+| `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN` | **Implemented**, defaults to **off** | `lib/auth/oauth.ts` |
+| Supabase Google provider | **NOT enabled** — owner action (§9) | — |
+| Google Cloud OAuth client | **NOT created** — owner action (§10) | — |
+| Redirect-URL allow-list entries | **NOT added** — owner action (§11) | — |
+| Staging verification (§17) | **NOT run** | — |
+| Database migration | **None added, none needed** | — |
+
+### 0.2 The verified-email decision, as implemented
+
+The callback reads `email_confirmed_at` from the **user returned by the verified code exchange**, not
+from a token claim, a session field or a client payload, and it checks it **before any database read**.
+
+- An identity with no confirmed email is refused (`?error=provisioning_failed`) and **no row is
+  created**. This mirrors `/api/auth/register`, which requires the same field from
+  `auth.admin.getUserById`.
+- A confirmed email is **necessary but never sufficient**: it authorises *creating a new devotee
+  row*, never *claiming an existing one*. A matching unlinked row still produces a neutral conflict
+  (§5), exactly as for a password sign-in.
+- Google's `email_verified` claim in `user_metadata` is treated as display data only. It is never
+  read for a decision, and it can never grant a role.
 
 > **Do not describe Google Sign-In as available** in any user-facing text, release note or
 > documentation until the Phase 0 security remediation has merged (§5.2), the three Google PRs
@@ -75,7 +110,7 @@ second authentication system, not adding a second identity store, and not adding
 | Admin console sign-in | `app/admin/ai/login`, `/forgot-password`, `/reset-password` | Addresses pinned in `lib/auth/raya-auth-routes.ts`. |
 | Identity API | `app/api/auth/me`, `/register`, `/profile` | See §3. |
 | Admin API | `app/api/admin/users/**`, `/api/ai/**` | Guarded by `admin-auth.ts`. |
-| OAuth callback | **does not exist** | Created in PR 2. |
+| OAuth callback | `app/auth/callback/route.ts` | Exists (PR 2). Inert while the provider is disabled. |
 
 ### 2.5 Content-Security-Policy
 
@@ -208,9 +243,11 @@ decision with an audit trail**, never an automatic consequence of a matching ema
 
 ### 5.2 Confirmed security findings that block Google OAuth (Phase 0)
 
-Three provisioning defects exist **today**, independently of Google Sign-In. They are recorded
-here as **existing, unfixed findings** so that this plan does not silently bless them. They must
-be remediated in their own security PR before any OAuth provider is enabled.
+Three provisioning defects existed **independently of Google Sign-In**. They were remediated by
+PR #428 (the Phase 0 security PR) before this OAuth work started; the findings are kept here as the
+record of what that PR fixed and of the tests that now pin each one. The "CURRENT, VULNERABLE
+behaviour" snippets below describe the code as it was **before** that PR and must not be
+reintroduced.
 
 | ID | Location | Finding | Severity |
 | --- | --- | --- | --- |
@@ -401,7 +438,7 @@ Touches: `app/api/auth/register/route.ts`, `app/api/auth/me/route.ts`, and their
     caller**.
 - Tests: the five cases above, including "one row after first sign-in".
 
-### PR 2 — Callback route and CSP
+### PR 2 — Callback route and CSP — **implemented**
 
 - Add `app/auth/callback/route.ts` and `lib/auth/oauth.ts` (redirect builder + `signInWithOAuth`).
 - Add `https://*.googleusercontent.com` to `img-src` in **both** `proxy.ts` and `next.config.ts`.
@@ -410,7 +447,7 @@ Touches: `app/api/auth/register/route.ts`, `app/api/auth/me/route.ts`, and their
 
 The route exists after this PR but nothing links to it, so it is inert in production.
 
-### PR 3 — UI, flag and documentation
+### PR 3 — UI, flag and documentation — **implemented** (provider still off)
 
 - Add `components/auth/GoogleSignInButton.tsx` and place it on `/login` (and `/register`).
 - Optional build-time kill-switch `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN`, defaulting to **off** when
@@ -523,11 +560,24 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY            # or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_K
 SUPABASE_SERVICE_ROLE_KEY                # server only
 ```
 
-Optional, introduced by PR 3:
+Optional, introduced by PR 3 and **off unless set to the literal `true`**:
 
 ```
-NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=true    # build-time; absent ⇒ button hidden
+NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN=true    # build-time; absent/anything else ⇒ button not rendered
 ```
+
+`lib/auth/oauth.ts:isGoogleSignInEnabled` trims and lower-cases the value and requires `"true"`, so
+`""`, `"false"`, `"1"` and `"yes"` all leave Google sign-in hidden. The value is read literally
+(`process.env.NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN`), because Next replaces `NEXT_PUBLIC_*` at build
+time.
+
+The flag is enforced twice, and the second check is the one that matters:
+
+1. **UI** — `components/auth/GoogleSignInButton.tsx` renders nothing when the flag is off, and
+   `signInWithGoogle` refuses to call `signInWithOAuth` at all.
+2. **Server** — `app/auth/callback/route.ts` checks the same flag **before** touching the code, so a
+   hand-built or stale `/auth/callback?code=…` request cannot exchange a code or provision a row while
+   Google sign-in is disabled. It answers with the ordinary `?error=provider_error` redirect.
 
 No new GitHub Actions secret is needed; `ci.yml` and `supabase-migrations.yml` are unaffected.
 
@@ -756,12 +806,13 @@ PR merges. It needs its own PR, its own approval, and nothing else in that PR.
 
 ## 19. What must be true before this document says "enabled"
 
-- [ ] **PR 0 merged and deployed** — S2, S3 and S4 remediated: no email-based linking anywhere,
-      no duplicate provisioning, and `23505` recovery can never adopt an unlinked row.
-- [ ] PR 1 merged and deployed (shared provisioning helper; email collisions refused, never
-      auto-linked).
-- [ ] PR 2 merged and deployed (`/auth/callback` exists; CSP allows `googleusercontent`).
-- [ ] PR 3 merged and deployed (button, flag, docs).
+- [x] **PR 0 merged** — PR #428: S2, S3 and S4 remediated (no email-based linking anywhere, no
+      duplicate provisioning, `23505` recovery can never adopt an unlinked row). Deployed.
+- [x] PR 1 — the shared provisioning helper is `provisionDevoteeRow` in `lib/auth/provisioning.ts`,
+      used by `/api/auth/me` and the OAuth callback. Merged with the Google implementation.
+- [x] PR 2 — `/auth/callback` exists; `img-src` allows `https://*.googleusercontent.com` in both
+      `proxy.ts` and `next.config.ts`; `/auth/` is disallowed in `robots.ts`.
+- [x] PR 3 — the button, the `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN` flag (default off) and these docs.
 - [ ] §15 pre-flight checks pass, including a zero duplicate-email count.
 - [ ] §9 dashboard steps completed, with the Site URL and full Redirect-URL list in place.
 - [ ] §10 Google Cloud client created, consent screen **published**, redirect URI exact.

@@ -13,12 +13,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useAuth } from "@/hooks/useAuth";
 import { assignLocation, safeReturnPath } from "@/lib/auth/safe-return";
+import { OAUTH_FAILURE_MESSAGES, type OAuthFailureCode } from "@/lib/auth/oauth";
 
 import Button from "@/components/ui/button";
 import Card from "@/components/ui/card";
 import Input from "@/components/ui/input";
 
 import LoginHeader from "./LoginHeader";
+import GoogleSignInButton from "./GoogleSignInButton";
 
 const schema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -42,6 +44,16 @@ export default function LoginForm() {
     }, 0);
     return () => clearTimeout(timer);
   }, []);
+
+  // A refused or failed OAuth sign-in returns `?error=<coarse key>` from /auth/callback. Only a known
+  // key is rendered, so no provider text, code or token can reach the page.
+  useEffect(() => {
+    const code = searchParams.get("error");
+    if (!code) return;
+    if (Object.prototype.hasOwnProperty.call(OAUTH_FAILURE_MESSAGES, code)) {
+      toast.error(OAUTH_FAILURE_MESSAGES[code as OAuthFailureCode]);
+    }
+  }, [searchParams]);
 
   // Show spinner while auth is loading
   const showSpinner = loading || !isClient;
@@ -99,6 +111,11 @@ export default function LoginForm() {
     <Card className="w-full max-w-md rounded-b-3xl shadow-xl shadow-amber-500/10">
       <div className="p-8">
         <LoginHeader />
+
+        <GoogleSignInButton
+          className="mt-8 mb-6"
+          next={safeReturnPath(searchParams.get("redirect"), "/")}
+        />
 
         <form
           onSubmit={handleSubmit(onSubmit)}

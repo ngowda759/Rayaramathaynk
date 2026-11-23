@@ -63,15 +63,22 @@ function decodedFormLeavesSite(raw: string, origin: string): boolean {
 }
 
 /**
- * The same-origin path to go to, or `fallback`.
- * Returns `pathname + search + hash` of the parsed URL, never the raw string. Outside a browser it returns `fallback`.
+ * The same-origin path to go to, or `fallback`, resolved against an explicit `origin`.
+ *
+ * The browser form below reads `window.location.origin`; this form takes the origin as a parameter so a
+ * server-side caller (the OAuth callback route, which has no `window`) applies exactly the same rules
+ * instead of a second, weaker copy of them.
+ *
+ * Returns `pathname + search + hash` of the parsed URL, never the raw string.
  */
-export function safeReturnPath(raw: string | null | undefined, fallback: string): string {
+export function sanitizeReturnPath(
+  raw: string | null | undefined,
+  fallback: string,
+  origin: string
+): string {
   if (typeof raw !== "string" || raw.length === 0) return fallback;
   if (CONTROL_OR_SPACE.test(raw) || raw.includes("\\")) return fallback;
   if (!raw.startsWith("/") || raw.startsWith("//")) return fallback;
-  if (typeof window === "undefined") return fallback;
-  const origin = window.location.origin;
   let url: URL;
   try {
     url = new URL(raw, origin);
@@ -85,6 +92,15 @@ export function safeReturnPath(raw: string | null | undefined, fallback: string)
   if (!result.startsWith("/") || result.startsWith("//") || result.startsWith("/\\")) return fallback;
   if (!staysOnOrigin(result, origin)) return fallback;
   return result;
+}
+
+/**
+ * The same-origin path to go to, or `fallback`.
+ * Returns `pathname + search + hash` of the parsed URL, never the raw string. Outside a browser it returns `fallback`.
+ */
+export function safeReturnPath(raw: string | null | undefined, fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  return sanitizeReturnPath(raw, fallback, window.location.origin);
 }
 
 /**

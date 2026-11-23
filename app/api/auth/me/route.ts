@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyBearerIdToken } from "@/lib/auth/verify-id-token";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  EMAIL_CONFLICT_MESSAGE,
-  findEmailConflicts,
-  findOwnedRowAfterConflict,
-  isUniqueViolation,
-} from "@/lib/auth/provisioning";
+import { EMAIL_CONFLICT_MESSAGE, provisionDevoteeRow } from "@/lib/auth/provisioning";
 import type { UserProfile } from "@/types/user";
 
 const PROFILE_COLUMNS =
@@ -64,70 +59,26 @@ export async function GET(request: NextRequest) {
     // Supabase Auth is the only sign-in provider, so `callerUid` is always a Supabase Auth UUID. The
     // authorization row is matched on `auth_user_id` only: a row whose `id` happens to equal the Auth
     // UID has never been linked, and treating it as the caller's would be an implicit link.
-    const { data: userRow, error: queryError } = await supabase
-      .from("users")
-      .select(PROFILE_COLUMNS)
-      .eq("auth_user_id", callerUid)
-      .maybeSingle();
+    // The rules live in lib/auth/provisioning.ts so the OAuth callback cannot drift from this route.
+    const outcome = await provisionDevoteeRow<ProfileRow>(supabase, {
+      uid: callerUid,
+      email: callerEmail,
+      displayName: callerEmail ? callerEmail.split("@")[0] : "Devotee",
+      columns: PROFILE_COLUMNS,
+    });
 
-    if (queryError) {
-      console.error("[api/auth/me] DB query error:", queryError);
-      return NextResponse.json({ error: "Database error" }, { status: 500 });
-    }
-
-    if (userRow) {
-      return NextResponse.json(mapRowToProfile(userRow as Record<string, unknown>, callerEmail));
-    }
-
-    // A row that already carries this address but is not linked to this identity must never be
-    // adopted or duplicated: adopting it would be an email-based link, and duplicating it would
-    // strand the person's existing role and history. Reconciliation is an administrative act.
-    const conflictCheck = await findEmailConflicts(supabase, callerEmail, callerUid);
-    if (!conflictCheck.ok) {
-      console.error("[api/auth/me] Email conflict check failed");
-      return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });
-    }
-    if (conflictCheck.conflicts.length > 0) {
-      return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
-    }
-
-    // Idempotent devotee self-provisioning for a verified identity with no existing row.
-    const insertPayload: Record<string, unknown> = {
-      email: callerEmail || "",
-      role: "devotee",
-      active: true,
-      display_name: callerEmail ? callerEmail.split("@")[0] : "Devotee",
-      auth_user_id: callerUid,
-    };
-
-    const { data: created, error: insertError } = await supabase
-      .from("users")
-      .insert(insertPayload)
-      .select(PROFILE_COLUMNS)
-      .single();
-
-    if (insertError || !created) {
-      // Concurrent insert race (Postgres 23505): only a row that is demonstrably this caller's
-      // may be returned. Anything else fails closed rather than being adopted.
-      if (isUniqueViolation(insertError)) {
-        const recheck = await findOwnedRowAfterConflict<ProfileRow>(supabase, callerUid, PROFILE_COLUMNS);
-
-        if (!recheck.ok) {
-          console.error("[api/auth/me] Race recovery lookup failed");
-          return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });
-        }
-        if (recheck.row) {
-          return NextResponse.json(mapRowToProfile(recheck.row, callerEmail));
-        }
-
+    switch (outcome.status) {
+      case "linked":
+      case "created":
+        return NextResponse.json(mapRowToProfile(outcome.row as Record<string, unknown>, callerEmail));
+      case "conflict":
+        // A row already carries this address but is not linked to this identity. Adopting it would be
+        // an email-based link; duplicating it would strand the person's existing role and history.
         return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
-      }
-
-      console.error("[api/auth/me] Failed to self-provision devotee:", insertError);
-      return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });
+      default:
+        console.error("[api/auth/me] Provisioning failed");
+        return NextResponse.json({ error: "Failed to load user profile" }, { status: 500 });
     }
-
-    return NextResponse.json(mapRowToProfile(created as Record<string, unknown>, callerEmail));
   } catch (error) {
     console.error("[api/auth/me] Unexpected error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

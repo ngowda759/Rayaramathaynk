@@ -23,18 +23,39 @@ provider; there is no Firebase fallback.
 | Provider | Status | Usage |
 |----------|--------|-------|
 | Email/Password | ✅ Enabled | Primary authentication |
-| Google | ⛔ Not enabled | OAuth sign-in is **planned only**. No callback route exists, the provider is not configured in the Supabase project, and no Google Cloud OAuth client has been created. See `docs/auth/GOOGLE-SIGNIN.md`. |
+| Google | ⛔ Not enabled (code ready) | The application code exists and is reviewed — `/auth/callback` (PKCE exchange + devotee provisioning), `lib/auth/oauth.ts`, `components/auth/GoogleSignInButton.tsx` — but the provider is **not** enabled in the Supabase project, no Google Cloud OAuth client has been created, and `NEXT_PUBLIC_ENABLE_GOOGLE_SIGNIN` is unset so the button is not rendered. See `docs/auth/GOOGLE-SIGNIN.md` §0.1. |
 | Facebook | ⛔ Not enabled | Deferred; not planned for the current phase. |
 | Instagram | ⛔ Not supported | Instagram exposes no email address and has no Supabase provider; it is unsuitable for consumer authentication. |
 | Phone | 🔒 Admin only | Reserved for admin verification |
 
-A person who signs in with an OAuth provider would receive the `devotee` role only, never an
-admin role; see `docs/auth/GOOGLE-SIGNIN.md` §7.
+A person who signs in with an OAuth provider receives the `devotee` role only, never an admin role;
+see `docs/auth/GOOGLE-SIGNIN.md` §7. The callback route writes nothing but `role: 'devotee'`,
+`active: true`, and it creates a row only when no row already holds the address.
 
-#### Known provisioning findings (open, unfixed)
+#### Google sign-in security properties (implemented, provider off)
 
-Google OAuth is blocked on the remediation of three provisioning defects that exist today,
-independently of any OAuth provider. They are documented in `docs/auth/GOOGLE-SIGNIN.md` §5.2:
+- **Identity comes from the verified exchange.** `app/auth/callback/route.ts` calls
+  `exchangeCodeForSession(code)` on the server and uses only the Supabase user it returns. No
+  client-supplied uid, email, query parameter or Google profile field is trusted.
+- **No email-based account claiming.** Provisioning goes through the same helper as
+  `/api/auth/me` (`provisionDevoteeRow` in `lib/auth/provisioning.ts`): an existing row is used only
+  when it carries this `auth_user_id`; a matching unlinked or foreign-owned row yields a neutral
+  `409`-equivalent and **no write**.
+- **Verified email is necessary but not sufficient.** `email_confirmed_at` from the exchanged user
+  gates *creating a new row*; it never authorizes claiming an existing one.
+- **No open redirect.** `next` passes through `sanitizeReturnPath` against the request's own origin;
+  absolute URLs, `//host`, `javascript:`, backslashes and encoded equivalents collapse to `/`.
+- **No secret leakage.** Failures redirect with a coarse enum key (`?error=missing_code`,
+  `exchange_failed`, `provider_error`, `provisioning_failed`, `account_conflict`). Codes, tokens and
+  provider error text are never placed in a URL, a page or a log.
+- **CSP.** `img-src` allows exactly `https://*.googleusercontent.com` for account avatars, in both
+  `proxy.ts` (effective) and `next.config.ts`.
+
+#### Provisioning findings S2/S3/S4 (remediated by PR #428)
+
+Three provisioning defects were remediated before the OAuth work began. They are documented in
+`docs/auth/GOOGLE-SIGNIN.md` §5.2 and pinned by `tests/security/auth-provisioning-identity.test.ts`
+and `tests/unit/auth/provisioning.test.ts`:
 
 | ID | Location | Finding |
 |----|----------|---------|

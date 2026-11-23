@@ -99,3 +99,66 @@ export async function findOwnedRowAfterConflict<Row extends { auth_user_id: stri
   if (row && row.auth_user_id !== callerUid) return { ok: true, row: null };
   return { ok: true, row };
 }
+
+/**
+ * Resolve or create the caller's own `public.users` row, applying the rules above in one place so
+ * that every self-provisioning entry point (the session route and the OAuth callback) behaves the
+ * same way.
+ *
+ * - `linked`   — a row already carries this `auth_user_id`. No write; the caller's own row.
+ * - `created`  — no row existed and none held this address, so a `devotee` row was inserted.
+ * - `conflict` — the address is held by an unlinked or foreign-owned row. No write; nothing is
+ *                returned, because returning that row would be the prohibited email-based link.
+ * - `error`    — the check or the write failed. Callers fail closed.
+ */
+export type DevoteeProvisionOutcome<Row> =
+  | { status: "linked"; row: Row }
+  | { status: "created"; row: Row }
+  | { status: "conflict" }
+  | { status: "error" };
+
+export async function provisionDevoteeRow<Row extends { auth_user_id: string | null }>(
+  supabase: SupabaseClient,
+  params: { uid: string; email: string | null; displayName: string; columns: string }
+): Promise<DevoteeProvisionOutcome<Row>> {
+  const { uid, email, displayName, columns } = params;
+
+  const { data: own, error: ownError } = await supabase
+    .from("users")
+    .select(columns)
+    .eq("auth_user_id", uid)
+    .maybeSingle();
+
+  if (ownError) return { status: "error" };
+  if (own && (own as unknown as { auth_user_id: string | null }).auth_user_id === uid) {
+    return { status: "linked", row: own as unknown as Row };
+  }
+
+  const conflictCheck = await findEmailConflicts(supabase, email, uid);
+  if (!conflictCheck.ok) return { status: "error" };
+  if (conflictCheck.conflicts.length > 0) return { status: "conflict" };
+
+  const { data: created, error: insertError } = await supabase
+    .from("users")
+    .insert({
+      email: email || "",
+      role: "devotee",
+      active: true,
+      display_name: displayName,
+      auth_user_id: uid,
+    })
+    .select(columns)
+    .single();
+
+  if (insertError || !created) {
+    if (!isUniqueViolation(insertError)) return { status: "error" };
+
+    // A concurrent insert won the race. Only a row demonstrably owned by this caller is success.
+    const recheck = await findOwnedRowAfterConflict<Row>(supabase, uid, columns);
+    if (!recheck.ok) return { status: "error" };
+    if (recheck.row) return { status: "linked", row: recheck.row };
+    return { status: "conflict" };
+  }
+
+  return { status: "created", row: created as unknown as Row };
+}
