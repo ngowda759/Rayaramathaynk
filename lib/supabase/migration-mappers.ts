@@ -278,7 +278,7 @@ export function mapDonationCampaign(
 }
 
 export function mapDonation(id: string, data: any): Record<string, any> {
-  return {
+  const row: Record<string, any> = {
     firestore_id: id,
     donor_name: requireString(data.donorName, "donorName"),
     email: requireString(data.email, "email"),
@@ -297,6 +297,12 @@ export function mapDonation(id: string, data: any): Record<string, any> {
     collected_by: requireString(data.collectedBy, "collectedBy"),
     collected_at: toIsoString(data.collectedAt),
   };
+
+  // Carry the source timestamps so the `created_at` column default never turns an
+  // import date into a fabricated creation date.
+  assignOptionalTimestamp(row, "created_at", data.createdAt, "createdAt");
+  assignOptionalTimestamp(row, "updated_at", data.updatedAt, "updatedAt");
+  return row;
 }
 
 export function mapGalleryAlbum(id: string, data: any): Record<string, any> {
