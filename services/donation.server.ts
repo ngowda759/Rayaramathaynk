@@ -66,7 +66,7 @@ class DonationService {
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false, nullsFirst: false });
     if (error) throw new Error(`Could not read donations: ${error.message}`);
     return (data ?? []).map(rowToDonation);
   }

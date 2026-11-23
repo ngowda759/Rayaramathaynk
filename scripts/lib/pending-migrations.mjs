@@ -98,6 +98,12 @@ export const APPROVED_PENDING_MIGRATIONS = Object.freeze([
   // UUID-shaped `firebase_uid`, so it links the outstanding row and is a no-op
   // elsewhere. It does not touch `firebase_uid`, `staff_no` or `status`.
   "20261202000000", // backfill_staff_auth_user_id — verified one-row fill on production
+  // 2026-12-03 donations.created_at. VERIFIED read-only against production on
+  // 2026-11-23: `donations` has 0 rows and no `created_at` column, so this adds one
+  // nullable column (default now()), backfills only rows that already carry
+  // `updated_at`/`collected_at`, and adds one DESC index. Additive, idempotent and
+  // non-destructive; nothing is dropped or rewritten.
+  "20261203000000", // donations_created_at — verified empty table on production
 ]);
 
 /**

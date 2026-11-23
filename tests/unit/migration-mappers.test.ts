@@ -199,6 +199,35 @@ describe("content mapper timestamp handling (C + D)", () => {
     ).toThrow(ValidationError);
   });
 
+  it("preserves a donation's createdAt/updatedAt and never invents them", () => {
+    const base = {
+      donorName: "N",
+      email: "e@x.org",
+      phone: "1",
+      address: "A",
+      amount: 1,
+      purpose: "P",
+      message: "",
+      paymentMode: "cash",
+      status: "completed",
+      receiptNumber: "R",
+      adminRemarks: "",
+      collectedBy: "admin",
+    };
+
+    const dated = mapDonation("d2", {
+      ...base,
+      createdAt: ts(1700000000),
+      updatedAt: ts(1700000100),
+    });
+    expect(dated.created_at).toBe(new Date(1700000000 * 1000).toISOString());
+    expect(dated.updated_at).toBe(new Date(1700000100 * 1000).toISOString());
+
+    const undated = mapDonation("d3", base);
+    expect(undated).not.toHaveProperty("created_at");
+    expect(undated).not.toHaveProperty("updated_at");
+  });
+
   it("leaves nullable collected_at/uploaded_at as null when absent", () => {
     const donation = mapDonation("d1", {
       donorName: "N",
