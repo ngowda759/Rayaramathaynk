@@ -65,6 +65,12 @@ describe("Admin User Provisioning Routes", () => {
       if (table === "users") {
         return {
           select: jest.fn().mockReturnValue({
+            eq: jest.fn().mockReturnValue({
+              maybeSingle: jest.fn().mockResolvedValue({
+                data: { role: "devotee", active: true },
+                error: null,
+              }),
+            }),
             or: jest.fn().mockReturnValue({
               maybeSingle: jest.fn().mockResolvedValue({
                 data: { role: "devotee", active: true },

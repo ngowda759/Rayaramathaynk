@@ -38,8 +38,8 @@ describe("supabaseIdentityAdapter", () => {
         data: { role: "receptionist", active: true },
         error: null,
       });
-      const mockOr = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
-      const mockSelect = jest.fn().mockReturnValue({ or: mockOr });
+      const mockEq = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
       mockFrom.mockReturnValue({ select: mockSelect });
 
       const profile = await supabaseIdentityAdapter.getAccessProfile(
@@ -57,8 +57,8 @@ describe("supabaseIdentityAdapter", () => {
         data: null,
         error: null,
       });
-      const mockOr = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
-      const mockSelect = jest.fn().mockReturnValue({ or: mockOr });
+      const mockEq = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
       mockFrom.mockReturnValue({ select: mockSelect });
 
       const profile = await supabaseIdentityAdapter.getAccessProfile(
@@ -73,8 +73,8 @@ describe("supabaseIdentityAdapter", () => {
         data: null,
         error: new Error("DB connection refused"),
       });
-      const mockOr = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
-      const mockSelect = jest.fn().mockReturnValue({ or: mockOr });
+      const mockEq = jest.fn().mockReturnValue({ maybeSingle: mockMaybeSingle });
+      const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
       mockFrom.mockReturnValue({ select: mockSelect });
 
       await expect(
@@ -82,6 +82,79 @@ describe("supabaseIdentityAdapter", () => {
       ).rejects.toThrow(SevaError);
     });
   });
+
+  describe("getAccessProfile resolves only by auth_user_id (F-01)", () => {
+    type Row = Record<string, unknown>;
+
+    /** Minimal PostgREST-like builder that filters fake rows by the queried column. */
+    function fakeUsersTable(rows: Row[]) {
+      return {
+        select: () => ({
+          eq: (column: string, value: unknown) => ({
+            maybeSingle: async () => ({
+              data: rows.find((row) => row[column] === value) ?? null,
+              error: null,
+            }),
+          }),
+          or: () => ({
+            maybeSingle: async () => ({ data: null, error: null }),
+          }),
+        }),
+      };
+    }
+
+    it("does not resolve a row whose id equals the Auth UID but auth_user_id is NULL", async () => {
+      const uid = "550e8400-e29b-41d4-a716-4466554400aa";
+      mockFrom.mockReturnValue(
+        fakeUsersTable([{ id: uid, auth_user_id: null, role: "super_admin", active: true }]),
+      );
+
+      await expect(supabaseIdentityAdapter.getAccessProfile(uid)).resolves.toBeNull();
+    });
+
+    it("does not resolve a row whose id equals the Auth UID but auth_user_id is a different UUID", async () => {
+      const uid = "550e8400-e29b-41d4-a716-4466554400bb";
+      mockFrom.mockReturnValue(
+        fakeUsersTable([
+          {
+            id: uid,
+            auth_user_id: "550e8400-e29b-41d4-a716-4466554400cc",
+            role: "super_admin",
+            active: true,
+          },
+        ]),
+      );
+
+      await expect(supabaseIdentityAdapter.getAccessProfile(uid)).resolves.toBeNull();
+    });
+
+    it("resolves a row whose auth_user_id matches the Auth UID", async () => {
+      const uid = "550e8400-e29b-41d4-a716-4466554400dd";
+      mockFrom.mockReturnValue(
+        fakeUsersTable([{ id: "an-independent-row-id", auth_user_id: uid, role: "receptionist", active: true }]),
+      );
+
+      await expect(supabaseIdentityAdapter.getAccessProfile(uid)).resolves.toEqual({
+        role: "receptionist",
+        isActive: true,
+      });
+    });
+
+    it("queries auth_user_id only and never the id column", async () => {
+      const uid = "550e8400-e29b-41d4-a716-4466554400ee";
+      const mockEq = jest.fn().mockReturnValue({
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+      });
+      const mockOr = jest.fn();
+      mockFrom.mockReturnValue({ select: () => ({ eq: mockEq, or: mockOr }) });
+
+      await supabaseIdentityAdapter.getAccessProfile(uid);
+
+      expect(mockEq).toHaveBeenCalledWith("auth_user_id", uid);
+      expect(mockOr).not.toHaveBeenCalled();
+    });
+  });
+
 
   describe("findLoginByEmail", () => {
     it("finds user login by email", async () => {
