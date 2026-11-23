@@ -8,6 +8,13 @@ import {
 } from "@/services/settings-document.service";
 
 /**
+ * Documents only a super admin may write. `financeSettings` carries the
+ * counter's UPI payee (docs/SECURITY.md §"Counter UPI id"); `device` carries
+ * device-security configuration. Reads stay available to the console.
+ */
+const SUPER_ADMIN_ONLY_SETTINGS: ReadonlySet<string> = new Set(["financeSettings", "device"]);
+
+/**
  * Admin read/write for a website settings document.
  *
  * Replaces the direct browser `getDoc`/`setDoc` calls the settings admin pages made
@@ -48,6 +55,9 @@ export async function PUT(
   const { key } = await params;
   if (!isSettingsDocumentKey(key)) {
     return NextResponse.json({ error: "Unknown settings document" }, { status: 404 });
+  }
+  if (SUPER_ADMIN_ONLY_SETTINGS.has(key) && auth.user.role !== "super_admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   let body: unknown;
