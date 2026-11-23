@@ -13,7 +13,7 @@
 //   skipped | failed.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDefaultSeedPayload } from "@/lib/ai/ai-settings/seed-data";
 
@@ -65,7 +65,7 @@ function isEmptyValue(value: unknown): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "administration.seed_ai_settings");
   if (!guard.ok) return guard.response;
   const admin = guard.user;
 

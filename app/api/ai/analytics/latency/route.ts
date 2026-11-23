@@ -4,10 +4,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLatencyMetrics } from "@/services/ai-analytics.service";
 import { Intent } from "@/lib/ai/intent/types";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "ai.analytics.read");
   if (!guard.ok) return guard.response;
   try {
     const searchParams = request.nextUrl.searchParams;

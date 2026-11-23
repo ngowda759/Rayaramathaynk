@@ -3,12 +3,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { addReviewComment, resolveComment } from "@/services/knowledge-workflow.service";
 
 /** Add or resolve a review comment. Admin-only; the author is the verified caller. */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.write");
   if (!auth.ok) return auth.response;
 
   try {
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.write");
   if (!auth.ok) return auth.response;
 
   try {

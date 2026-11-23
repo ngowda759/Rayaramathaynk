@@ -7,10 +7,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { aiSettingsService } from "@/lib/ai/ai-settings";
 import { IntentMetadata } from "@/types/ai-settings";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 
 export async function GET(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "ai.settings.read");
   if (!guard.ok) return guard.response;
   const admin = guard.user;
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireRayaAdminUser(request);
+    const guard = await requireAdminCapability(request, "ai.settings.write");
     if (!guard.ok) return guard.response;
     const admin = guard.user;
     const userId = admin.uid;
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const guard = await requireRayaAdminUser(request);
+    const guard = await requireAdminCapability(request, "ai.settings.write");
     if (!guard.ok) return guard.response;
     const admin = guard.user;
     const userId = admin.uid;
@@ -115,7 +115,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const guard = await requireRayaAdminUser(request);
+    const guard = await requireAdminCapability(request, "ai.settings.write");
     if (!guard.ok) return guard.response;
     const admin = guard.user;
     const userId = admin.uid;

@@ -12,7 +12,7 @@
 // warnings.
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireRayaAdminUser } from "@/lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { aiAdminRepository } from "@/lib/ai/ai-settings/admin-repository";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ function hasContent(value: unknown): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  const guard = await requireRayaAdminUser(request);
+  const guard = await requireAdminCapability(request, "ai.analytics.read");
   if (!guard.ok) return guard.response;
 
   // Read-only connectivity probe: reading the settings document exercises the

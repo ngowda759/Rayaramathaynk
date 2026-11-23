@@ -22,8 +22,8 @@ jest.mock("@/lib/ai/ai-settings", () => ({
   },
 }));
 
-jest.mock("@/lib/auth/raya-admin-auth", () => ({
-  requireRayaAdminUser: jest.fn(() =>
+jest.mock("@/lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: jest.fn(() =>
     Promise.resolve({ ok: true, user: { uid: "admin-1" } })
   ),
 }));

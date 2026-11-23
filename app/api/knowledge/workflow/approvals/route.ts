@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { submitCommitteeVote } from "@/services/knowledge-workflow.service";
 
 /**
@@ -11,7 +11,7 @@ import { submitCommitteeVote } from "@/services/knowledge-workflow.service";
  * request cannot vote on another member's behalf.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "knowledge.approve");
   if (!auth.ok) return auth.response;
 
   try {

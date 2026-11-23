@@ -4,10 +4,10 @@ import { DELETE, POST } from "../../app/api/ai/settings/prompts/route";
 import { NextRequest } from "next/server";
 import { aiSettingsService } from "../../lib/ai/ai-settings";
 import { PromptVersionDeleteError } from "../../lib/ai/ai-settings/prompt-errors";
-import { requireRayaAdminUser } from "../../lib/auth/raya-admin-auth";
+import { requireAdminCapability } from "../../lib/auth/admin-capabilities";
 
-jest.mock("../../lib/auth/raya-admin-auth", () => ({
-  requireRayaAdminUser: jest.fn(),
+jest.mock("../../lib/auth/admin-capabilities", () => ({
+  requireAdminCapability: jest.fn(),
 }));
 
 jest.mock("../../lib/ai/ai-settings", () => ({
@@ -30,7 +30,7 @@ describe("POST /api/ai/settings/prompts", () => {
 
   it("should create a prompt when authorized", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -65,7 +65,7 @@ describe("POST /api/ai/settings/prompts", () => {
 
   it("should create the Raya AI Master System Prompt with correct requirements", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -100,7 +100,7 @@ describe("POST /api/ai/settings/prompts", () => {
   });
 
   it("should reject unauthorized users", async () => {
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403 }),
     });
@@ -119,7 +119,7 @@ describe("POST /api/ai/settings/prompts", () => {
 
   it("should require content", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -148,7 +148,7 @@ describe("PUT /api/ai/settings/prompts", () => {
 
   it("should update a prompt when authorized", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -178,7 +178,7 @@ describe("PUT /api/ai/settings/prompts", () => {
 
   it("should publish a prompt when authorized", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -205,7 +205,7 @@ describe("PUT /api/ai/settings/prompts", () => {
 
   it("should rollback a prompt when authorized", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -232,7 +232,7 @@ describe("PUT /api/ai/settings/prompts", () => {
 
   it("should archive a prompt when authorized via update", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -260,7 +260,7 @@ describe("PUT /api/ai/settings/prompts", () => {
   });
 
   it("should reject unauthorized users for PUT", async () => {
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403 }),
     });
@@ -280,7 +280,7 @@ describe("PUT /api/ai/settings/prompts", () => {
 
   it("should handle invalid actions", async () => {
     const mockUser = { uid: "admin-uid", email: "admin@example.com", role: "admin" };
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: mockUser,
     });
@@ -302,10 +302,10 @@ describe("PUT /api/ai/settings/prompts", () => {
 });
 
 describe("Auth checks", () => {
-  it("should handle expired tokens by verifying requireRayaAdminUser handles it", async () => {
-    // This is essentially testing the integration with requireRayaAdminUser
+  it("should handle expired tokens by verifying requireAdminCapability handles it", async () => {
+    // This is essentially testing the integration with requireAdminCapability
     // The actual token validation happens inside raya-admin-auth.ts which has its own tests
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ error: "Authentication token has expired.", reason: "expired_token" }), { status: 401 }),
     });
@@ -322,7 +322,7 @@ describe("Auth checks", () => {
   });
 
   it("should handle authenticated non-admins", async () => {
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ error: "This account does not have administrator permissions.", reason: "insufficient_role" }), { status: 403 }),
     });
@@ -363,7 +363,7 @@ describe("DELETE /api/ai/settings/prompts", () => {
   }
 
   function authorize() {
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: true,
       user: { uid: "admin-uid", email: "admin@example.com", role: "admin" },
     });
@@ -385,7 +385,7 @@ describe("DELETE /api/ai/settings/prompts", () => {
   });
 
   it("rejects the request before touching data when unauthorized", async () => {
-    (requireRayaAdminUser as jest.Mock).mockResolvedValue({
+    (requireAdminCapability as jest.Mock).mockResolvedValue({
       ok: false,
       response: new Response(JSON.stringify({ error: "Unauthorized", reason: "missing_token" }), { status: 401 }),
     });
