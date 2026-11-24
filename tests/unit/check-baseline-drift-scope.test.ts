@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { USERS_EMAIL_CANONICAL_SQL_EXPRESSION } from "@/lib/auth/email-normalization";
 
 const ROOT = resolve(__dirname, "..", "..");
 const SCRIPT = resolve(ROOT, "scripts/lib/check-baseline-drift-scope.mjs");
@@ -61,25 +62,66 @@ describe("check-baseline-drift-scope", () => {
     expect(r.out).toMatch(/changed tables \(1\): ai_settings/);
   });
 
-  it("allows only the known users email expression index change", () => {
-    const r = runWithDiff(
-      report(
-        "[*] Changed the `users` table\n" +
-          "  [*] Added index `users_email_lower_btrim_key` on columns `lower(btrim(email))`\n",
-      ),
-    );
+  const approvedIndex = (expression = USERS_EMAIL_CANONICAL_SQL_EXPRESSION) =>
+    `  [*] Added index \`users_email_lower_btrim_key\` on columns \`${expression}\`\n`;
+
+  const usersChange = (...lines: string[]) =>
+    report("[*] Changed the `users` table\n" + lines.join(""));
+
+  it("allows the known users email index with the exact approved expression", () => {
+    const r = runWithDiff(usersChange(approvedIndex()));
     expect(r.code).toBe(0);
     expect(r.out).toMatch(/allowed known index change \(1\): users/);
     expect(r.out).toMatch(/SCOPED RESULT: PASS/);
   });
 
-  it("still fails when users has the known index plus any other change", () => {
+  it("rejects the same index name with lower(email)", () => {
+    const r = runWithDiff(usersChange(approvedIndex("lower(email)")));
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
+  it("rejects the same index name with the old lower(btrim(email)) expression", () => {
+    const r = runWithDiff(usersChange(approvedIndex("lower(btrim(email))")));
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
+  it("rejects the same index name with a different translate expression", () => {
     const r = runWithDiff(
-      report(
-        "[*] Changed the `users` table\n" +
-          "  [*] Added index `users_email_lower_btrim_key` on columns `lower(btrim(email))`\n" +
-          "  [+] Added column `unexpected`\n",
+      usersChange(
+        approvedIndex(
+          "translate(btrim(email), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')",
+        ),
       ),
+    );
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
+  it("rejects the same index name with no expression", () => {
+    const r = runWithDiff(usersChange("  [*] Added index `users_email_lower_btrim_key`\n"));
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
+  it("fails when users has the approved index plus any other change", () => {
+    const r = runWithDiff(usersChange(approvedIndex(), "  [+] Added column `unexpected`\n"));
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
+  it("fails when users has the approved index plus a second index", () => {
+    const r = runWithDiff(
+      usersChange(approvedIndex(), "  [*] Added index `another_index` on columns `lower(email)`\n"),
+    );
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
+  it("fails on an unrelated constraint change on users", () => {
+    const r = runWithDiff(
+      usersChange(approvedIndex(), "  [*] Added constraint `users_email_check`\n"),
     );
     expect(r.code).toBe(2);
     expect(r.out).toMatch(/SCOPED RESULT: FAIL/);

@@ -55,6 +55,11 @@ describe("normalizeRole / normalizeEmail", () => {
   it("lower-cases and trims the email", () => {
     expect(normalizeEmail("  Admin@Example.ORG ")).toBe("admin@example.org");
   });
+
+  it("uses the full ECMAScript whitespace set and rejects internal whitespace", () => {
+    expect(normalizeEmail(" \t\nAdmin@Example.ORG\r\u00a0")).toBe("admin@example.org");
+    expect(normalizeEmail("Admin\t@example.org")).toBe("");
+  });
 });
 
 describe("bootstrapInsertConflictMessage", () => {

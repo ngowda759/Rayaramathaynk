@@ -216,6 +216,32 @@ describe("supabaseIdentityAdapter", () => {
         email_confirm: false,
       });
     });
+
+    it("trims the full ECMAScript whitespace set and lower-cases ASCII", async () => {
+      mockCreateUser.mockResolvedValue({
+        data: { user: { id: "created-uuid" } },
+        error: null,
+      });
+
+      await supabaseIdentityAdapter.createLogin({
+        email: " \t\nNew@Example.COM\r\u00a0",
+        displayName: "New Person",
+      });
+
+      expect(mockCreateUser).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "new@example.com" }),
+      );
+    });
+
+    it("rejects internal whitespace before calling Supabase Auth", async () => {
+      await expect(
+        supabaseIdentityAdapter.createLogin({
+          email: "new\tperson@example.com",
+          displayName: "New Person",
+        }),
+      ).rejects.toMatchObject({ code: "validation" });
+      expect(mockCreateUser).not.toHaveBeenCalled();
+    });
   });
 
   describe("setAccessProfile", () => {
@@ -247,6 +273,28 @@ describe("supabaseIdentityAdapter", () => {
         expect.objectContaining({ email: "counter@example.org" }),
       );
       expect(updateEq).toHaveBeenCalledWith("id", "row-1");
+    });
+
+    it("trims the full ECMAScript whitespace set from the email", async () => {
+      const { update } = fakeSetAccessProfile({ id: "row-1" });
+
+      await supabaseIdentityAdapter.setAccessProfile("uid-1", {
+        email: " \t\nCounter@Example.ORG\r\u00a0",
+      });
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "counter@example.org" }),
+      );
+    });
+
+    it("rejects internal whitespace before any write", async () => {
+      const { update, insert } = fakeSetAccessProfile({ id: "row-1" });
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "Coun\tter@example.org" }),
+      ).rejects.toMatchObject({ code: "validation" });
+      expect(update).not.toHaveBeenCalled();
+      expect(insert).not.toHaveBeenCalled();
     });
 
     it("maps a duplicate email update (23505) to a validation error", async () => {

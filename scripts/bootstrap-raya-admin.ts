@@ -59,6 +59,10 @@ async function main() {
   const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
   const email = normalizeEmail(requireEnv("RAYA_ADMIN_EMAIL"));
+  if (!email) {
+    console.error("RAYA_ADMIN_EMAIL is not a valid email address.");
+    process.exit(1);
+  }
   const password = requireEnv("RAYA_ADMIN_PASSWORD");
   const role = normalizeRole(process.env.RAYA_ADMIN_ROLE || "super_admin");
   const forceRole = process.env.RAYA_ADMIN_FORCE_ROLE === "1";

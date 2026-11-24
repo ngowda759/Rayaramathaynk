@@ -393,7 +393,9 @@ Scope cannot be silently narrowed:
   by deleting it from one place;
 - a missing, added, or changed in-scope table still fails;
 - the one known Supabase-only expression index (`users_email_lower_btrim_key`) is
-  allowed by exact name; any other change to `users` still fails;
+  allowed only by exact name **and** exact approved expression; the same name with
+  `lower(email)` or any other expression fails, and any other change to `users`
+  still fails;
 - a table whose name is a probable typo/mismap of an in-scope name (e.g.
   `ai_knowledge_extra`) still fails, so a wrong `@@map` is not excused.
 
@@ -451,9 +453,11 @@ none is applied in PR-1.
    looks users up by Firebase UID, so this has not mattered. If PR-3 looks users up
    by email, uniqueness becomes a correctness requirement. Addressed by
    `supabase/migrations/20261204000000_users_email_lower_btrim_unique.sql`, a
-   `UNIQUE (lower(btrim(email)))` expression index. Prisma cannot model expression
-   indexes, so `scripts/lib/check-baseline-drift-scope.mjs` allows exactly that
-   index on `users` and still fails on any other change.
+   `UNIQUE (translate(btrim(email, <ECMAScript whitespace set>), 'A-Z', 'a-z'))`
+   expression index. The exact contract lives in `lib/auth/email-normalization.ts`.
+   Prisma cannot model expression indexes, so
+   `scripts/lib/check-baseline-drift-scope.mjs` allows exactly that index name and
+   exact expression on `users`, and still fails on any other change.
 
 4. **`profiles` vs `users`.** Both exist and both carry identity data. Which one
    becomes authoritative for a Supabase Auth user is unresolved. PR-1 models both

@@ -10,7 +10,22 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  normalizeEmailAddress,
+  tryNormalizeEmailAddress,
+} from "@/lib/auth/email-normalization";
 import { escapeLikePattern, quoteFilterValue } from "@/lib/supabase/filters";
+
+export {
+  EMAIL_TRIM_WHITESPACE_CODEPOINTS,
+  EMAIL_WHITESPACE_SQL_U_STRING,
+  EmailNormalizationError,
+  USERS_EMAIL_CANONICAL_SQL_EXPRESSION,
+  normalizeEmailAddress,
+  normalizedEmailSchema,
+  tryNormalizeEmailAddress,
+  type EmailNormalizationFailure,
+} from "@/lib/auth/email-normalization";
 
 /**
  * Deliberately neutral: it must not reveal whether the existing row is
@@ -36,11 +51,6 @@ export function isUniqueViolation(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const { code, message } = error as { code?: string; message?: string };
   return code === "23505" || /duplicate key|already exists/i.test(message || "");
-}
-
-/** Canonical stored/looked-up address: trimmed and lower-cased. */
-export function normalizeEmailAddress(raw: string | null | undefined): string {
-  return (raw ?? "").trim().toLowerCase();
 }
 
 /** `email.ilike."<escaped>"` — case-insensitive equality with no wildcards. */
@@ -70,8 +80,12 @@ export async function findEmailConflicts(
   email: string | null | undefined,
   callerUid: string
 ): Promise<{ ok: true; conflicts: EmailConflictRow[] } | { ok: false }> {
-  const normalized = normalizeEmailAddress(email);
-  if (!normalized) return { ok: true, conflicts: [] };
+  const normalizedResult = tryNormalizeEmailAddress(email);
+  if (!normalizedResult.ok) {
+    if (normalizedResult.reason === "empty") return { ok: true, conflicts: [] };
+    return { ok: false };
+  }
+  const normalized = normalizedResult.email;
 
   const { data, error } = await supabase
     .from("users")
@@ -81,15 +95,16 @@ export async function findEmailConflicts(
   if (error) return { ok: false };
 
   const rows = (Array.isArray(data) ? data : []) as (EmailConflictRow & { email?: string | null })[];
-  return {
-    ok: true,
-    conflicts: rows.filter(
-      (row) =>
-        typeof row.email === "string" &&
-        row.email.trim().toLowerCase() === normalized &&
-        row.auth_user_id !== callerUid
-    ),
-  };
+  const conflicts: EmailConflictRow[] = [];
+  for (const row of rows) {
+    if (typeof row.email !== "string") return { ok: false };
+    const rowEmail = tryNormalizeEmailAddress(row.email);
+    if (!rowEmail.ok) return { ok: false };
+    if (rowEmail.email === normalized && row.auth_user_id !== callerUid) {
+      conflicts.push(row);
+    }
+  }
+  return { ok: true, conflicts };
 }
 
 /**
@@ -154,7 +169,11 @@ export async function provisionDevoteeRow<Row extends { auth_user_id: string | n
     return { status: "unverified" };
   }
 
-  const normalizedEmail = normalizeEmailAddress(email);
+  const normalizedResult = tryNormalizeEmailAddress(email);
+  if (!normalizedResult.ok) {
+    return normalizedResult.reason === "empty" ? { status: "unverified" } : { status: "error" };
+  }
+  const normalizedEmail = normalizedResult.email;
 
   const { data: own, error: ownError } = await supabase
     .from("users")

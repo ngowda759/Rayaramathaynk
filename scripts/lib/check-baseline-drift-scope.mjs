@@ -108,20 +108,37 @@ function parseDiff(text) {
  * the email expression index. Prisma cannot represent it in `schema.prisma`, so the
  * scoped diff tolerates exactly this index and nothing else on `users`.
  */
+const EMAIL_WHITESPACE_SQL_U_STRING =
+  String.raw`\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF`;
+
 const ALLOWED_IN_SCOPE_INDEX = {
   table: "users",
   index: "users_email_lower_btrim_key",
+  expression:
+    `translate(btrim(email, U&'${EMAIL_WHITESPACE_SQL_U_STRING}'), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')`,
 };
+
+function normalizeSqlExpression(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
 
 function isAllowedKnownIndexChange(table, lines) {
   if (table !== ALLOWED_IN_SCOPE_INDEX.table) return false;
   const meaningful = (lines || []).map((line) => line.trim()).filter(Boolean);
-  if (meaningful.length === 0) return false;
-  const addedIndex = new RegExp(
-    `^\\[\\*\\] Added index [\`"]?${ALLOWED_IN_SCOPE_INDEX.index}`,
-    "i",
+  if (meaningful.length !== 1) return false;
+
+  const match = meaningful[0].match(
+    /^\[\*\] Added index [`"]?([^`"\s]+)[`"]?(?:\s+on columns?\s+[`"]?(.+?)[`"]?)?$/i,
   );
-  return meaningful.every((line) => addedIndex.test(line));
+  if (!match) return false;
+
+  const [, indexName, expression] = match;
+  if (indexName !== ALLOWED_IN_SCOPE_INDEX.index) return false;
+  if (!expression) return false;
+  return (
+    normalizeSqlExpression(expression) ===
+    normalizeSqlExpression(ALLOWED_IN_SCOPE_INDEX.expression)
+  );
 }
 
 /** True when `name` is a probable typo/mismap of an in-scope table. */

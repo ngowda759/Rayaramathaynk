@@ -8,6 +8,8 @@
  * case or spacing is treated as a different account rather than silently normalized.
  */
 
+import { tryNormalizeEmailAddress } from "@/lib/auth/email-normalization";
+
 export interface UsersIdentityRow {
   id: string;
   email: string | null;
@@ -37,14 +39,21 @@ export interface UsersIdentityLinkInput {
   rows: readonly UsersIdentityRow[];
 }
 
-/** Trimmed and lower-cased, the only normalization applied when comparing a stored address to the input. */
+/** Canonical form under the shared contract; "" when the value cannot be normalized. */
 export function normalizeUsersEmail(value: string): string {
-  return value.trim().toLowerCase();
+  const result = tryNormalizeEmailAddress(value);
+  return result.ok ? result.email : "";
+}
+
+/** True only when the value is a valid, canonicalizable address under the shared contract. */
+export function isNormalizableUsersEmail(value: string): boolean {
+  return tryNormalizeEmailAddress(value).ok;
 }
 
 export function planUsersIdentityLink(input: UsersIdentityLinkInput): UsersIdentityLinkPlan {
   const { authUserId, email, linkExisting, rows } = input;
   const normalized = normalizeUsersEmail(email);
+  if (!normalized) return { kind: "refuse", reason: "non-normalized" };
 
   // The Auth identity already owns a row: that row is authoritative and nothing is linked by email.
   if (authUserId) {
@@ -55,6 +64,11 @@ export function planUsersIdentityLink(input: UsersIdentityLinkInput): UsersIdent
   // A row that already carries an identity is never overwritten, and a second row is never created for it.
   if (rows.some((row) => row.email === email && row.auth_user_id !== null)) {
     return { kind: "refuse", reason: "foreign" };
+  }
+
+  // A malformed stored address cannot be proven different safely: refuse rather than ignore it.
+  if (rows.some((row) => !isNormalizableUsersEmail(row.email ?? ""))) {
+    return { kind: "refuse", reason: "non-normalized" };
   }
 
   // A stored address that differs only by case or spacing is a different account: refuse rather than guess.

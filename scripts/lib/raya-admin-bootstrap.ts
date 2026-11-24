@@ -17,6 +17,8 @@
  * 4. A conflicting or duplicate mapping fails closed rather than guessing.
  */
 
+import { tryNormalizeEmailAddress } from "@/lib/auth/email-normalization";
+
 export interface AuthUserLike {
   id: string;
   email?: string | null;
@@ -65,9 +67,10 @@ export function normalizeRole(role: unknown): string {
   return role.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
-/** Lower-cased, trimmed email. The only normalization applied to operator input. */
+/** Canonical email under the shared contract; "" when the input cannot be normalized. */
 export function normalizeEmail(raw: string): string {
-  return raw.trim().toLowerCase();
+  const result = tryNormalizeEmailAddress(raw);
+  return result.ok ? result.email : "";
 }
 
 /** A clear operator-facing message for a unique violation on the bootstrap insert, or null. */

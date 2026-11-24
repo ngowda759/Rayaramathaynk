@@ -13,6 +13,8 @@
  * does the I/O; every decision lives here so it is unit-tested.
  */
 
+import { tryNormalizeEmailAddress } from "@/lib/auth/email-normalization";
+
 export interface AuthUserLike {
   id: string;
   email?: string | null;
@@ -62,7 +64,8 @@ export const ALLOWED_ROLES: ReadonlySet<string> = new Set([
 ]);
 
 function normalizeEmail(value: string | null | undefined): string {
-  return (value ?? "").trim().toLowerCase();
+  const result = tryNormalizeEmailAddress(value);
+  return result.ok ? result.email : "";
 }
 
 function normalizeRole(role: unknown): string {

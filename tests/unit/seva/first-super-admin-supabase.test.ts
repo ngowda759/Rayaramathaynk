@@ -620,8 +620,8 @@ describe("createSupabasePorts.insertStaff (Finding 3)", () => {
 
 describe("parseArgs", () => {
   it("reads --email and --uuid in both spellings and refuses anything else", () => {
-    expect(parseArgs(["--email", "Nikhil@Example.org"])).toEqual({
-      email: "Nikhil@Example.org",
+    expect(parseArgs(["--email", " \tNikhil@Example.org\r\u00a0"])).toEqual({
+      email: "nikhil@example.org",
       execute: false,
       help: false,
       allowUnverifiedEmail: false,
@@ -709,6 +709,8 @@ describe("helpers", () => {
     expect(normalizeRole("Super Admin")).toBe("super_admin");
     expect(normalizeRole(undefined)).toBe("");
     expect(normalizeEmail("  Nikhil@Example.ORG ")).toBe("nikhil@example.org");
+    expect(normalizeEmail(" \t\nNikhil@Example.ORG\r\u00a0")).toBe("nikhil@example.org");
+    expect(normalizeEmail("Nikhil\t@example.org")).toBe("");
     expect(nameFor({ email: "nikhil@example.org", displayName: null })).toBe("nikhil");
     expect(nameFor({ email: "a@b.org", displayName: "  Nikhil N  " })).toBe("Nikhil N");
     expect(nameFor({ email: null, displayName: null })).toBe("");
