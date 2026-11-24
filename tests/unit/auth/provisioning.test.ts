@@ -222,3 +222,88 @@ describe("identity keys", () => {
     expect(identityColumns).toEqual(["auth_user_id"]);
   });
 });
+
+describe("email normalization", () => {
+  it("stores the trimmed lower-case address and checks conflicts in the same form", async () => {
+    mockFrom.mockReturnValueOnce(ownRowQuery(null));
+    const or = jest.fn().mockResolvedValue({ data: [], error: null });
+    const emailQ = { select: jest.fn().mockReturnValue({ or }) };
+    mockFrom.mockReturnValueOnce(emailQ);
+    const insert = insertQuery({ id: "row-new", auth_user_id: UID });
+    mockFrom.mockReturnValueOnce(insert);
+
+    const outcome = await provision({ email: "  Devotee@Example.TEST  " });
+
+    expect(outcome.status).toBe("created");
+    expect(insert.insert.mock.calls[0][0]).toMatchObject({ email: EMAIL });
+    expect(or).toHaveBeenCalledTimes(1);
+    expect(String(or.mock.calls[0][0])).toContain(EMAIL);
+    expect(String(or.mock.calls[0][0])).not.toContain("Devotee@Example.TEST");
+  });
+
+  it("never links an unlinked row that holds the same normalized email", async () => {
+    mockFrom.mockReturnValueOnce(ownRowQuery(null));
+    mockFrom.mockReturnValueOnce(
+      emailQuery([{ id: "row-legacy", auth_user_id: null, email: EMAIL }]),
+    );
+
+    const outcome = await provision({ email: "  Devotee@Example.TEST  " });
+
+    expect(outcome).toEqual({ status: "conflict" });
+  });
+
+  it("resolves a 23505 race only to the caller's own row, never by email", async () => {
+    mockFrom.mockReturnValueOnce(ownRowQuery(null));
+    mockFrom.mockReturnValueOnce(emailQuery([]));
+    mockFrom.mockReturnValueOnce(
+      insertQuery(null, { code: "23505", message: "duplicate key users_email_lower_btrim_key" }),
+    );
+    mockFrom.mockReturnValueOnce(ownRowQuery(null));
+
+    const outcome = await provision({ email: "  Devotee@Example.TEST  " });
+
+    expect(outcome).toEqual({ status: "conflict" });
+  });
+
+  it("trims the full ECMAScript whitespace set before storing and comparing", async () => {
+    mockFrom.mockReturnValueOnce(ownRowQuery(null));
+    const or = jest.fn().mockResolvedValue({ data: [], error: null });
+    mockFrom.mockReturnValueOnce({ select: jest.fn().mockReturnValue({ or }) });
+    const insert = insertQuery({ id: "row-new", auth_user_id: UID });
+    mockFrom.mockReturnValueOnce(insert);
+
+    const outcome = await provision({ email: " \t\nDevotee@Example.TEST\r\u00a0" });
+
+    expect(outcome.status).toBe("created");
+    expect(insert.insert.mock.calls[0][0]).toMatchObject({ email: EMAIL });
+  });
+
+  it("rejects internal whitespace before any database read", async () => {
+    const outcome = await provision({ email: "Devo\ttee@Example.TEST" });
+
+    expect(outcome).toEqual({ status: "error" });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("treats a stored edge-whitespace variant as the same address", async () => {
+    mockFrom.mockReturnValueOnce(ownRowQuery(null));
+    mockFrom.mockReturnValueOnce(
+      emailQuery([{ id: "row-legacy", auth_user_id: null, email: " \tDevotee@Example.TEST\r\n" }]),
+    );
+
+    const outcome = await provision({ email: "Devotee@Example.TEST" });
+
+    expect(outcome).toEqual({ status: "conflict" });
+  });
+
+  it("fails closed when a matched stored address has internal whitespace", async () => {
+    mockFrom.mockReturnValueOnce(ownRowQuery(null));
+    mockFrom.mockReturnValueOnce(
+      emailQuery([{ id: "row-legacy", auth_user_id: null, email: "Devo\ttee@Example.TEST" }]),
+    );
+
+    const outcome = await provision();
+
+    expect(outcome).toEqual({ status: "error" });
+  });
+});

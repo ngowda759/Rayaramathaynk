@@ -88,4 +88,29 @@ describe("planUsersIdentityLink", () => {
       reason: "non-normalized",
     });
   });
+
+  it("uses the full ECMAScript whitespace set and ASCII-only folding", () => {
+    expect(normalizeUsersEmail(" \t\nA@B.Com\r\u00a0")).toBe("a@b.com");
+    expect(normalizeUsersEmail("Ä@B.Com")).toBe("Ä@b.com");
+    expect(normalizeUsersEmail("A\tB@C.Com")).toBe("");
+  });
+
+  it("refuses a stored address with edge whitespace instead of selecting it", () => {
+    expect(
+      plan({ linkExisting: true, rows: [row({ email: " \tLakshmi.n@example.com\r\n" })] }),
+    ).toEqual({ kind: "refuse", reason: "non-normalized" });
+  });
+
+  it("fails closed when a candidate row stores internal whitespace", () => {
+    expect(
+      plan({ linkExisting: true, rows: [row({ email: "Lakshmi\t.n@example.com" })] }),
+    ).toEqual({ kind: "refuse", reason: "non-normalized" });
+  });
+
+  it("fails closed when the input address is not canonicalizable", () => {
+    expect(plan({ email: "Lakshmi\t.n@example.com", linkExisting: true, rows: [] })).toEqual({
+      kind: "refuse",
+      reason: "non-normalized",
+    });
+  });
 });

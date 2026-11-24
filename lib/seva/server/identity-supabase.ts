@@ -9,9 +9,23 @@
 
 import "server-only";
 import { checkBearerIdToken } from "@/lib/auth/verify-id-token";
+import { isUniqueViolation, tryNormalizeEmailAddress } from "@/lib/auth/provisioning";
 import { SevaError } from "@/lib/seva/errors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { IdentityAdapter } from "./identity";
+
+function accessProfileConflict(
+  error: { code?: string; message?: string; details?: string | null } | null,
+): never {
+  const text = `${error?.message ?? ""} ${error?.details ?? ""}`;
+  const isEmail = /users_email_lower_btrim_key|email/i.test(text);
+  throw new SevaError("validation", {
+    field: "email",
+    message: isEmail
+      ? "This email is already used by another account."
+      : "This account conflicts with an existing identity.",
+  });
+}
 
 export const supabaseIdentityAdapter: IdentityAdapter = {
   async verifyRequest(req) {
@@ -54,7 +68,9 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
   async findLoginByEmail(email) {
     try {
       const supabase = createAdminClient();
-      const normalizedEmail = email.trim().toLowerCase();
+      const normalized = tryNormalizeEmailAddress(email);
+      if (!normalized.ok) return null;
+      const normalizedEmail = normalized.email;
 
       // Check Supabase Auth Admin first
       const adminAuth = (supabase.auth as any)?.admin;
@@ -76,9 +92,10 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
       if (typeof adminAuth?.listUsers === "function") {
         const { data, error } = await adminAuth.listUsers();
         if (!error && Array.isArray(data?.users)) {
-          const matched = data.users.find(
-            (u: any) => u.email?.trim().toLowerCase() === normalizedEmail
-          );
+          const matched = data.users.find((u: any) => {
+            const candidate = tryNormalizeEmailAddress(u.email);
+            return candidate.ok && candidate.email === normalizedEmail;
+          });
           if (matched) {
             return {
               externalUid: matched.id,
@@ -109,8 +126,16 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
         throw new SevaError("internal");
       }
 
+      const normalizedEmail = tryNormalizeEmailAddress(email);
+      if (!normalizedEmail.ok) {
+        throw new SevaError("validation", {
+          field: "email",
+          message: "Enter a valid email address.",
+        });
+      }
+
       const { data, error } = await adminAuth.createUser({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail.email,
         user_metadata: {
           name: displayName,
           displayName,
@@ -145,7 +170,16 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
 
     if (patch.role !== undefined) updateData.role = patch.role;
     if (patch.isActive !== undefined) updateData.active = patch.isActive;
-    if (patch.email !== undefined) updateData.email = patch.email;
+    if (patch.email !== undefined) {
+      const normalized = tryNormalizeEmailAddress(patch.email);
+      if (!normalized.ok) {
+        throw new SevaError("validation", {
+          field: "email",
+          message: "Enter a valid email address.",
+        });
+      }
+      updateData.email = normalized.email;
+    }
     if (patch.displayName !== undefined) updateData.display_name = patch.displayName;
     updateData.updated_at = new Date().toISOString();
 
@@ -170,6 +204,7 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
         .eq("id", existing.id);
 
       if (error) {
+        if (isUniqueViolation(error)) accessProfileConflict(error);
         console.error("[identity-supabase] setAccessProfile update failed:", error.message);
         throw new SevaError("internal");
       }
@@ -184,6 +219,7 @@ export const supabaseIdentityAdapter: IdentityAdapter = {
         });
 
       if (error) {
+        if (isUniqueViolation(error)) accessProfileConflict(error);
         console.error("[identity-supabase] setAccessProfile insert failed:", error.message);
         throw new SevaError("internal");
       }

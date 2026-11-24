@@ -14,6 +14,7 @@
 // Exit code is always 0: this is a diagnostic, and its value is the report.
 
 import { createClient } from "@supabase/supabase-js";
+import { tryNormalizeEmailAddress } from "@/lib/auth/email-normalization";
 import {
   diagnoseRayaAdminLogin,
   type AuthUserLike,
@@ -35,7 +36,8 @@ function requireEnv(name: string): string | null {
 async function main() {
   const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
   const serviceKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
-  const email = (process.env.RAYA_ADMIN_EMAIL || "").trim().toLowerCase();
+  const emailResult = tryNormalizeEmailAddress(process.env.RAYA_ADMIN_EMAIL);
+  const email = emailResult.ok ? emailResult.email : "";
 
   if (!url || !serviceKey) return;
   if (!email) {

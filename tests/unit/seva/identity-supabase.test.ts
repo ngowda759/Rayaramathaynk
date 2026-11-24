@@ -216,5 +216,122 @@ describe("supabaseIdentityAdapter", () => {
         email_confirm: false,
       });
     });
+
+    it("trims the full ECMAScript whitespace set and lower-cases ASCII", async () => {
+      mockCreateUser.mockResolvedValue({
+        data: { user: { id: "created-uuid" } },
+        error: null,
+      });
+
+      await supabaseIdentityAdapter.createLogin({
+        email: " \t\nNew@Example.COM\r\u00a0",
+        displayName: "New Person",
+      });
+
+      expect(mockCreateUser).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "new@example.com" }),
+      );
+    });
+
+    it("rejects internal whitespace before calling Supabase Auth", async () => {
+      await expect(
+        supabaseIdentityAdapter.createLogin({
+          email: "new\tperson@example.com",
+          displayName: "New Person",
+        }),
+      ).rejects.toMatchObject({ code: "validation" });
+      expect(mockCreateUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("setAccessProfile", () => {
+    type Row = Record<string, unknown>;
+
+    function fakeSetAccessProfile(
+      existing: Row | null,
+      updateError: unknown = null,
+      insertError: unknown = null,
+    ) {
+      const updateEq = jest.fn().mockResolvedValue({ error: updateError });
+      const update = jest.fn().mockReturnValue({ eq: updateEq });
+      const insert = jest.fn().mockResolvedValue({ error: insertError });
+      const maybeSingle = jest.fn().mockResolvedValue({ data: existing, error: null });
+      const eq = jest.fn().mockReturnValue({ maybeSingle });
+      const select = jest.fn().mockReturnValue({ eq });
+      mockFrom.mockReturnValue({ select, update, insert });
+      return { update, insert, updateEq };
+    }
+
+    it("normalizes the email before updating an existing profile", async () => {
+      const { update, updateEq } = fakeSetAccessProfile({ id: "row-1" });
+
+      await supabaseIdentityAdapter.setAccessProfile("uid-1", {
+        email: "  Counter@Example.ORG ",
+      });
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "counter@example.org" }),
+      );
+      expect(updateEq).toHaveBeenCalledWith("id", "row-1");
+    });
+
+    it("trims the full ECMAScript whitespace set from the email", async () => {
+      const { update } = fakeSetAccessProfile({ id: "row-1" });
+
+      await supabaseIdentityAdapter.setAccessProfile("uid-1", {
+        email: " \t\nCounter@Example.ORG\r\u00a0",
+      });
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "counter@example.org" }),
+      );
+    });
+
+    it("rejects internal whitespace before any write", async () => {
+      const { update, insert } = fakeSetAccessProfile({ id: "row-1" });
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "Coun\tter@example.org" }),
+      ).rejects.toMatchObject({ code: "validation" });
+      expect(update).not.toHaveBeenCalled();
+      expect(insert).not.toHaveBeenCalled();
+    });
+
+    it("maps a duplicate email update (23505) to a validation error", async () => {
+      fakeSetAccessProfile(
+        { id: "row-1" },
+        {
+          code: "23505",
+          message: 'duplicate key value violates unique constraint "users_email_lower_btrim_key"',
+        },
+      );
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "dup@example.org" }),
+      ).rejects.toMatchObject({ code: "validation" });
+    });
+
+    it("maps a duplicate email insert (23505) to a validation error", async () => {
+      fakeSetAccessProfile(
+        null,
+        null,
+        {
+          code: "23505",
+          message: 'duplicate key value violates unique constraint "users_email_lower_btrim_key"',
+        },
+      );
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "dup@example.org" }),
+      ).rejects.toMatchObject({ code: "validation" });
+    });
+
+    it("still maps other database failures to internal", async () => {
+      fakeSetAccessProfile({ id: "row-1" }, { code: "XX000", message: "boom" });
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "x@example.org" }),
+      ).rejects.toMatchObject({ code: "internal" });
+    });
   });
 });

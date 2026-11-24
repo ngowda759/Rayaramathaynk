@@ -9,6 +9,7 @@ import {
   findOwnedRowAfterConflict,
   isConfirmedEmail,
   isUniqueViolation,
+  tryNormalizeEmailAddress,
 } from "@/lib/auth/provisioning";
 import type { UserProfile } from "@/types/user";
 
@@ -100,6 +101,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: EMAIL_NOT_VERIFIED_MESSAGE }, { status: 403 });
     }
 
+    const normalizedEmail = tryNormalizeEmailAddress(caller.email);
+    if (!normalizedEmail.ok) {
+      return NextResponse.json({ error: "Invalid email address" }, { status: 400 });
+    }
+
     const payloadRaw = await request.json().catch(() => null);
     if (!payloadRaw || typeof payloadRaw !== "object") {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
@@ -132,7 +138,7 @@ export async function POST(request: NextRequest) {
       // The address is taken from the verified identity, never from the request body: it is what
       // the conflict check above queried, and a client-chosen value would let a caller store an
       // address another row already holds while the check saw a different one.
-      email: caller.email || "",
+      email: normalizedEmail.email,
       display_name: payload.name || "",
       phone_number: payload.phone || "",
       photo_url: payload.profileImage || "",
@@ -147,12 +153,15 @@ export async function POST(request: NextRequest) {
         .eq("id", existingUser.id);
 
       if (updateError) {
+        if (isUniqueViolation(updateError)) {
+          return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });
+        }
         console.error("[POST /api/auth/profile] Profile update error:", updateError.message);
         return NextResponse.json({ error: "Database error" }, { status: 500 });
       }
     } else {
       // Never adopt or duplicate an existing row for this address; see lib/auth/provisioning.ts.
-      const conflictCheck = await findEmailConflicts(supabase, caller.email, caller.uid);
+      const conflictCheck = await findEmailConflicts(supabase, normalizedEmail.email, caller.uid);
       if (!conflictCheck.ok) {
         console.error("[POST /api/auth/profile] Email conflict check failed");
         return NextResponse.json({ error: "Database error" }, { status: 500 });

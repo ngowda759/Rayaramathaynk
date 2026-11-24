@@ -17,6 +17,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { isAdminConsoleRole } from "@/lib/auth/admin-auth";
+import { normalizedEmailSchema, tryNormalizeEmailAddress } from "@/lib/auth/email-normalization";
 import { createRateLimitResponse, getClientIP, rateLimit } from "@/lib/rate-limit";
 import { SevaError } from "@/lib/seva/errors";
 import { can, mapFirestoreRole } from "@/lib/seva/permissions";
@@ -30,7 +31,7 @@ import { isUuid } from "@/lib/supabase/identifier";
 const ROLES = ["devotee", "volunteer", "admin", "billing", "super_admin"] as const;
 
 const setRoleSchema = z.object({
-  email: z.string().trim().toLowerCase().pipe(z.email("Invalid email format")),
+  email: normalizedEmailSchema("Invalid email format"),
   role: z.enum(ROLES, { error: `Invalid role. Must be one of: ${ROLES.join(", ")}` }),
 });
 
@@ -41,7 +42,11 @@ const setRoleSchema = z.object({
  * than `not_found`, so an outage can never be read as "this user does not exist".
  */
 async function findLoginUid(email: string): Promise<string> {
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalized = tryNormalizeEmailAddress(email);
+  if (!normalized.ok) {
+    throw new SevaError("validation", { field: "email", message: "Invalid email format" });
+  }
+  const normalizedEmail = normalized.email;
 
   let adminAuth: {
     getUserByEmail?: (e: string) => Promise<{ data?: { user?: { id?: string } | null } | null; error?: unknown }>;
@@ -76,9 +81,10 @@ async function findLoginUid(email: string): Promise<string> {
       if (listError) {
         throw new SevaError("internal", { message: "Supabase Auth lookup failed" });
       }
-      const found = listed?.users?.find(
-        (u) => u.email?.trim().toLowerCase() === normalizedEmail
-      );
+      const found = listed?.users?.find((u) => {
+        const candidate = tryNormalizeEmailAddress(u.email);
+        return candidate.ok && candidate.email === normalizedEmail;
+      });
       if (found?.id) {
         return found.id;
       }

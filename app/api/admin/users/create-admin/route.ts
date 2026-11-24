@@ -15,6 +15,7 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { normalizedEmailSchema } from "@/lib/auth/email-normalization";
 import { createRateLimitResponse, getClientIP, rateLimit } from "@/lib/rate-limit";
 import { SevaError } from "@/lib/seva/errors";
 import { can } from "@/lib/seva/permissions";
@@ -24,7 +25,7 @@ import { onboardStaff, requireStaffAdmin } from "@/lib/seva/server/staff";
 import { isUuid } from "@/lib/supabase/identifier";
 
 const createAdminSchema = z.object({
-  email: z.string().trim().toLowerCase().pipe(z.email("Invalid email format")),
+  email: normalizedEmailSchema("Invalid email format"),
   password: z.string().min(8, "Password must be at least 8 characters").max(128, "Keep the password to 128 characters or fewer"),
   name: z.string().trim().min(1, "Name is required").max(80, "Keep the name to 80 characters or fewer"),
 });

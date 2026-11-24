@@ -52,6 +52,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import {
   FIRST_SUPER_ADMIN_STAFF_NO,
+  normalizeEmail,
   planFirstSuperAdmin,
   type AuthUserLike,
   type FirstSuperAdminPlan,
@@ -148,8 +149,12 @@ export function parseArgs(argv: string[]): Options {
   if (options.help) return options;
   if (options.email && options.uuid) throw new BootstrapError("Pass either --email or --uuid, not both.");
   if (!options.email && !options.uuid) throw new BootstrapError("Pass --email <address> or --uuid <uuid>.");
-  if (options.email && !EMAIL_RE.test(options.email.trim())) {
-    throw new BootstrapError(`--email is not a valid address: ${options.email}`);
+  if (options.email) {
+    const normalized = normalizeEmail(options.email);
+    if (!EMAIL_RE.test(normalized)) {
+      throw new BootstrapError(`--email is not a valid address: ${options.email}`);
+    }
+    options.email = normalized;
   }
   if (options.uuid && !UUID_RE.test(options.uuid.trim())) {
     throw new BootstrapError(`--uuid is not a valid UUID: ${options.uuid}`);
@@ -448,12 +453,13 @@ async function findAuthUserByEmail(supabase: SupabaseClient, email: string): Pro
 
   // Fallback: paginate the Auth user list and match on email (case-insensitive).
   // The pinned SDK (@supabase/supabase-js 2.116.0) has no getUserByEmail.
-  const target = email.trim().toLowerCase();
+  const target = normalizeEmail(email);
+  if (!target) return null;
   for (let page = 1; page <= 100; page += 1) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw new BootstrapError(`Supabase Auth list failed: ${error.message}`);
     const users = data?.users ?? [];
-    const match = users.find((u) => (u.email ?? "").trim().toLowerCase() === target);
+    const match = users.find((u) => normalizeEmail(u.email) === target);
     if (match) return toResolvedAuthUser(match);
     if (users.length < 1000) break;
   }
@@ -512,8 +518,9 @@ export function createSupabasePorts(supabase: SupabaseClient): BootstrapPorts {
       if (byAuthId) return { profile: byAuthId, match: "auth_user_id" };
       const byFirestore = await by("firestore_id", uid);
       if (byFirestore) return { profile: byFirestore, match: "firestore_id" };
-      if (email) {
-        const byEmail = await by("email", email.trim().toLowerCase());
+      const normalizedEmail = normalizeEmail(email);
+      if (normalizedEmail) {
+        const byEmail = await by("email", normalizedEmail);
         if (byEmail) return { profile: byEmail, match: "email" };
       }
       return { profile: null, match: "none" };

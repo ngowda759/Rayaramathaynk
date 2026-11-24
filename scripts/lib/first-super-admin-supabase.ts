@@ -40,6 +40,8 @@
  *    eligible.
  */
 
+import { tryNormalizeEmailAddress } from "@/lib/auth/email-normalization";
+
 /** The Supabase Auth account, reduced to what the plan needs. */
 export interface AuthUserLike {
   id: string;
@@ -179,7 +181,8 @@ export function normalizeRole(role: unknown): string {
 }
 
 export function normalizeEmail(raw: string | null | undefined): string {
-  return (raw ?? "").trim().toLowerCase();
+  const result = tryNormalizeEmailAddress(raw);
+  return result.ok ? result.email : "";
 }
 
 /** The display name: the Auth display name, else the email's local part; trimmed and cut to 80 characters. */

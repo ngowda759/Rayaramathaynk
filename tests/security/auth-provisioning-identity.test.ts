@@ -601,6 +601,27 @@ describe("lib/auth/provisioning helpers", () => {
     if (result.ok) expect(result.conflicts).toHaveLength(1);
   });
 
+  it("matches a stored address with the full ECMAScript whitespace set at its edges", async () => {
+    const client = fakeClient([
+      { id: "row-1", auth_user_id: null, email: " \t\nDevotee@Example.Test\r\u00a0" },
+    ]);
+
+    const result = await findEmailConflicts(client, "devotee@example.test", CALLER_UID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.conflicts).toHaveLength(1);
+  });
+
+  it("fails closed when a matched stored address has internal whitespace", async () => {
+    const client = fakeClient([
+      { id: "row-1", auth_user_id: null, email: "Devo\ttee@Example.Test" },
+    ]);
+
+    await expect(findEmailConflicts(client, "devotee@example.test", CALLER_UID)).resolves.toEqual({
+      ok: false,
+    });
+  });
+
   it("ignores rows already owned by the caller", async () => {
     const client = fakeClient([
       { id: "row-1", auth_user_id: CALLER_UID, email: "devotee@example.test" },
@@ -620,6 +641,10 @@ describe("lib/auth/provisioning helpers", () => {
 
   it("quotes and escapes the email in the PostgREST filter", () => {
     expect(emailEqualsFilter(' a"b,c@example.test ')).toBe('email.ilike."a\\"b,c@example.test"');
+  });
+
+  it("trims the full ECMAScript whitespace set in the filter", () => {
+    expect(emailEqualsFilter(" \tA@B.Com\r\u00a0")).toBe('email.ilike."a@b.com"');
   });
 
   it("recognises 23505 by code and by message", () => {

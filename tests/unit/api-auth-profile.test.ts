@@ -356,6 +356,98 @@ describe("POST /api/auth/profile", () => {
     expect(updated?.is_approved).toBe(true);
   });
 
+  it("normalizes the verified email when updating an existing profile", async () => {
+    mockSupabaseAuth("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "  Staff@Example.org ", true);
+    mockUsersTable.push({
+      id: "u-staff-normalize",
+      auth_user_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      email: "staff@example.org",
+      display_name: "Staff",
+      role: "receptionist",
+      active: true,
+      is_approved: true,
+    });
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "staff-token",
+        body: { name: "Updated" },
+      })
+    );
+    expect(res.status).toBe(200);
+    const updated = mockUsersTable.find((u) => u.id === "u-staff-normalize");
+    expect(updated?.email).toBe("staff@example.org");
+  });
+
+  it("trims the full ECMAScript whitespace set from the verified email", async () => {
+    mockSupabaseAuth("dddddddd-dddd-4ddd-8ddd-dddddddddddd", " \t\nStaff@Example.org\r\u00a0", true);
+    mockUsersTable.push({
+      id: "u-staff-whitespace",
+      auth_user_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+      email: "old@example.org",
+      display_name: "Staff",
+      role: "receptionist",
+      active: true,
+      is_approved: true,
+    });
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "staff-token",
+        body: { name: "Updated" },
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const updated = mockUsersTable.find((u) => u.id === "u-staff-whitespace");
+    expect(updated?.email).toBe("staff@example.org");
+  });
+
+  it("rejects internal whitespace before any profile write", async () => {
+    mockSupabaseAuth("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "Sta\tff@example.org", true);
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "staff-token",
+        body: { name: "Updated" },
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(mockUsersTable.some((u) => u.auth_user_id === "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")).toBe(false);
+  });
+
+  it("returns 409 when a profile update hits the email unique violation", async () => {
+    mockSupabaseAuth("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "staff@example.org", true);
+    mockUsersTable.push({
+      id: "u-staff-conflict",
+      auth_user_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      email: "staff@example.org",
+      display_name: "Staff",
+      role: "receptionist",
+      active: true,
+      is_approved: true,
+    });
+    mockUpdateError = {
+      code: "23505",
+      message: 'duplicate key value violates unique constraint "users_email_lower_btrim_key"',
+    } as unknown as Error;
+
+    const res = await POST(
+      makeRequest("/api/auth/profile", {
+        method: "POST",
+        token: "staff-token",
+        body: { name: "Updated" },
+      })
+    );
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/already exists/i);
+  });
+
   it("preserves unapproved status (is_approved: false) when updating profile", async () => {
     mockSupabaseAuth("99999999-9999-4999-8999-999999999999", "unapproved@example.org", true);
     mockUsersTable.push({

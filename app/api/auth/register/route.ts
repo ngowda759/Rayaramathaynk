@@ -22,11 +22,13 @@ import {
   emailEqualsFilter,
   isConfirmedEmail,
   isUniqueViolation,
+  normalizedEmailSchema,
+  tryNormalizeEmailAddress,
 } from "@/lib/auth/provisioning";
 
 const registerBodySchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
-  email: z.string().trim().toLowerCase().pipe(z.email("Invalid email format")),
+  email: normalizedEmailSchema("Invalid email format"),
   phone: z.string().optional().default(""),
   userId: z.string().optional(),
 });
@@ -147,11 +149,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. A body address may only restate the authenticated address.
-    if (caller.email && caller.email.trim().toLowerCase() !== email) {
-      return NextResponse.json(
-        { error: "Email does not match authenticated session token" },
-        { status: 400 }
-      );
+    if (caller.email) {
+      const callerEmail = tryNormalizeEmailAddress(caller.email);
+      if (!callerEmail.ok || callerEmail.email !== email) {
+        return NextResponse.json(
+          { error: "Email does not match authenticated session token" },
+          { status: 400 }
+        );
+      }
     }
 
     const supabase = createAdminClient();
@@ -168,7 +173,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: EMAIL_NOT_VERIFIED_MESSAGE }, { status: 403 });
     }
 
-    if (identity.email.trim().toLowerCase() !== email) {
+    const identityEmail = tryNormalizeEmailAddress(identity.email);
+    if (!identityEmail.ok || identityEmail.email !== email) {
       return NextResponse.json(
         { error: "Email does not match registered authentication account" },
         { status: 400 }
@@ -183,7 +189,7 @@ export async function POST(request: NextRequest) {
     }
 
     const verifiedUid = caller.uid;
-    const verifiedEmail = identity.email.trim().toLowerCase();
+    const verifiedEmail = identityEmail.email;
 
     // 6. Query existing profiles and reject ambiguous matches.
     const { data: existingList, error: queryError } = await supabase
@@ -250,12 +256,11 @@ export async function POST(request: NextRequest) {
 
         // Only the caller's own row counts as success. An unlinked or foreign
         // row re-observed here is a conflict, never something to adopt.
-        if (
-          recheck &&
-          recheck.auth_user_id === verifiedUid &&
-          recheck.email?.toLowerCase() === verifiedEmail
-        ) {
-          return NextResponse.json({ success: true, message: "User already provisioned" });
+        if (recheck && recheck.auth_user_id === verifiedUid) {
+          const recheckEmail = tryNormalizeEmailAddress(recheck.email);
+          if (recheckEmail.ok && recheckEmail.email === verifiedEmail) {
+            return NextResponse.json({ success: true, message: "User already provisioned" });
+          }
         }
 
         return NextResponse.json({ error: EMAIL_CONFLICT_MESSAGE }, { status: 409 });

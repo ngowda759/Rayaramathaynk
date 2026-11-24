@@ -4,6 +4,7 @@
  * Field rules come from the DB §7 checks and §13. Pure: imports nothing from other seva modules that run in parallel.
  */
 import { z } from 'zod';
+import { normalizedEmailSchema } from '@/lib/auth/email-normalization';
 import type {
   CancelReasonCode,
   CounterOrderPayload,
@@ -520,7 +521,7 @@ const sevaRole = z.enum(['receptionist', 'prasadam_counter', 'temple_admin', 'su
 export const staffOnboardSchema = z
   .object({
     fullName: boundedText(1, 80),
-    email: z.string().trim().toLowerCase().pipe(z.email('Enter a valid email address')),
+    email: normalizedEmailSchema('Enter a valid email address'),
     role: sevaRole,
     viewOnly: z.boolean(),
     staffNo: z.number().int().min(1).max(999).optional(),
