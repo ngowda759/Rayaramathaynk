@@ -104,6 +104,13 @@ export const APPROVED_PENDING_MIGRATIONS = Object.freeze([
   // `updated_at`/`collected_at`, and adds one DESC index. Additive, idempotent and
   // non-destructive; nothing is dropped or rewritten.
   "20261203000000", // donations_created_at — verified empty table on production
+  // 2026-12-04 users.email uniqueness. N-05D read-only preflight on 2026-11-24 found
+  // 3 users, 0 duplicate groups, 0 untrimmed/non-lower/empty rows. N-05E changed the
+  // contract to the exact ECMAScript trim set plus ASCII-only folding; rerun the
+  // read-only query in docs/audits/N-05_EMAIL_UNIQUENESS_PREFLIGHT.sql before apply.
+  // Additive unique expression index; no data change. Prepared for review; apply only
+  // after explicit owner approval.
+  "20261204000000", // users_email_lower_btrim_unique — final preflight required before apply
 ]);
 
 /**

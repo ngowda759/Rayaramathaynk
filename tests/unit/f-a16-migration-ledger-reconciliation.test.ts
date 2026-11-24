@@ -35,8 +35,9 @@ describe("F-A16-06 migration ledger reconciliation", () => {
   it("counts exactly the files present (41 at the audit base commit 3048196)", () => {
     // Pinned so a new migration forces a conscious update of the reconciliation doc.
     // Five F-A16 remediation migrations were added on top of the audit base; the
-    // reconciliation document records both numbers.
-    const baseline = 43;
+    // reconciliation document records both numbers. The 44th file is the N-05
+    // users.email unique expression index.
+    const baseline = 44;
     const proposed = files.filter((f) => /_f_a16_/.test(f)).length;
     const phase2 = files.filter((f) => /_add_auth_user_id_to_staff\.sql$/.test(f)).length;
     const userApproval = files.filter((f) => /_add_is_approved_to_users\.sql$/.test(f)).length;
@@ -91,12 +92,13 @@ describe("F-A16-06 migration ledger reconciliation", () => {
       "20261115000200_f_a16_existing_table_privileges.sql",
       "20261115000300_f_a16_existing_function_privileges.sql",
     ]);
-    expect(future.length - proposed.length).toBe(20);
+    expect(future.length - proposed.length).toBe(21);
     expect(future).toContain("20261114000100_donations_updated_at.sql");
     expect(future).toContain("20261116000000_add_auth_user_id_to_staff.sql");
     expect(future).toContain("20261201000000_add_is_approved_to_users.sql");
     expect(future).toContain("20261202000000_backfill_staff_auth_user_id.sql");
     expect(future).toContain("20261203000000_donations_created_at.sql");
+    expect(future).toContain("20261204000000_users_email_lower_btrim_unique.sql");
     // Same-day as the audit, not later.
     expect(future).not.toContain("20261101000000_seva_paper_size_not_null.sql");
   });
