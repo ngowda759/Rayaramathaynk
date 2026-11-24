@@ -63,7 +63,7 @@ type UserRole =
 ```
 
 **Indexes:**
-- `email` (unique)
+- `translate(btrim(email, <ECMAScript whitespace set>), 'A-Z', 'a-z')` (unique; `users_email_lower_btrim_key` — trims the exact ECMAScript `trim()` set and folds ASCII case only; see `lib/auth/email-normalization.ts`)
 - `templeId, role`
 - `isActive, role`
 

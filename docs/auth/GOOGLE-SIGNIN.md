@@ -429,7 +429,7 @@ Touches: `app/api/auth/register/route.ts`, `app/api/auth/me/route.ts`, and their
 - Extract the now-safe provisioning rules from PR 0 into one shared, email-aware helper used by
   `GET /api/auth/me` and `POST /api/auth/profile`, so the two paths cannot drift:
   - returns the existing row when `auth_user_id` matches (no write);
-  - **refuses** (no write) when a row exists with the same `lower(email)` and
+  - **refuses** (no write) when a row exists with the same canonical email and
     `auth_user_id IS NULL` — per §5, no automatic linking;
   - **refuses with 409** when a row exists with the same email owned by a different
     `auth_user_id`;
@@ -459,9 +459,11 @@ The route exists after this PR but nothing links to it, so it is inert in produc
 
 ### Separate, later (not part of PR 0–PR 3)
 
-- **Optional** `CREATE UNIQUE INDEX ... ON public.users (lower(email))`. This is a production DDL
-  change and needs its own PR and explicit owner approval — see §15 and the operational warning in
-  §18.1.
+- **Separate N-05 migration** `CREATE UNIQUE INDEX ... ON public.users
+  (translate(btrim(email, <ECMAScript whitespace set>), 'A-Z', 'a-z'))`. This is a production DDL
+  change and needs its own PR and explicit owner approval — see
+  `supabase/migrations/20261204000000_users_email_lower_btrim_unique.sql`, §15 and the operational
+  warning in §18.1.
 - **Provider activation** is an owner action in the Supabase dashboard (§9), not a PR.
 
 ---
@@ -657,7 +659,8 @@ tooling — not by ad-hoc writes, and not from this document.
 
 | # | Check | Why it matters | Pass condition |
 | --- | --- | --- | --- |
-| 1 | Count `public.users` rows grouped by `lower(email)` where `count(*) > 1` | Duplicate profiles would make "which row does this person get?" ambiguous | Zero groups |
+| 1 | Count `public.users` rows grouped by the N-05 canonical expression (`translate(btrim(email, <ECMAScript whitespace set>), 'A-Z', 'a-z')`) where `count(*) > 1` | Duplicate profiles would make "which row does this person get?" ambiguous | Zero groups |
+| 1b | Count `public.users` rows where `email` differs from that canonical expression, or contains any whitespace | Noncanonical rows are not what the unique index compares | Zero rows |
 | 2 | Count `public.users` rows with `email IS NOT NULL AND auth_user_id IS NULL` | Each is a row a Google sign-in could collide with; per §5 these are refused, not linked | Each one enumerated and understood |
 | 3 | Enumerate the admin rows (`role` on the allow-list) and their `auth_user_id` | Confirm every admin is already linked, so no admin is affected by the refusal path | Every admin has a non-null `auth_user_id` |
 | 4 | Confirm the Supabase project's account-linking behaviour (§5) | Decides whether GoTrue reuses an existing auth user or creates a second one. The application refuses email-based linking either way | Recorded in this document |
@@ -669,6 +672,10 @@ Existing tooling that may help: `npm run diagnose:raya-admin-login` (read-only) 
 in `docs/auth/PHASE-2-IDENTITY-UNIFICATION.md` and `docs/auth/PHASE-3-AUTH-AUDIT.md` but **no such
 script exists in `package.json` or `scripts/`** — the checks above must be run with whatever
 read-only tooling the owner has approved, not by assuming that command works.
+
+The exact N-05 SQL for checks 1 and 1b is in
+`docs/audits/N-05_EMAIL_UNIQUENESS_PREFLIGHT.sql`. It is a read-only transaction and must not be
+run by an automated agent against production.
 
 If check 1 is non-zero, **stop**: resolve the duplicates through the approved reconciliation
 process before proceeding. Do not add a unique index and do not enable the provider over a
