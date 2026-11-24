@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import AdminPageHeader from "@/components/admin/common/AdminPageHeader";
 import { apiFetch } from "@/lib/api/fetch";
+import { useAuth } from "@/hooks/useAuth";
 import { TempleArea, TempleAreaCategory, CATEGORY_LABELS, CATEGORY_COLORS } from "@/types/temple-explorer";
 import toast from "react-hot-toast";
 import { 
@@ -32,6 +33,10 @@ import {
 const CATEGORIES: TempleAreaCategory[] = ["sanctum", "halls", "facilities", "gardens", "historical"];
 
 export default function TempleAreasPage() {
+  const { can } = useAuth();
+  const canWrite = can("temple_areas.write");
+  const canDelete = can("temple_areas.delete");
+
   const [areas, setAreas] = useState<TempleArea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,10 +141,12 @@ export default function TempleAreasPage() {
         title="Temple Explorer Areas"
         description="Manage temple areas and facilities displayed on the Temple Explorer page."
         action={
-          <Button onClick={() => setEditDialog({ open: true, area: null })}>
-            <PlusCircle className="h-4 w-4 mr-2" />
-            Add Area
-          </Button>
+          canWrite ? (
+            <Button onClick={() => setEditDialog({ open: true, area: null })}>
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Add Area
+            </Button>
+          ) : undefined
         }
       />
 
@@ -216,21 +223,27 @@ export default function TempleAreasPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditDialog({ open: true, area })}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteDialog({ open: true, area })}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {canWrite && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Edit area"
+                              onClick={() => setEditDialog({ open: true, area })}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label="Delete area"
+                              onClick={() => setDeleteDialog({ open: true, area })}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
