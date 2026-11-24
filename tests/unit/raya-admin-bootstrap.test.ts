@@ -7,6 +7,7 @@
  */
 
 import {
+  bootstrapInsertConflictMessage,
   escapeLikePattern,
   filterLegacyProfilesByEmail,
   normalizeEmail,
@@ -53,6 +54,28 @@ describe("normalizeRole / normalizeEmail", () => {
 
   it("lower-cases and trims the email", () => {
     expect(normalizeEmail("  Admin@Example.ORG ")).toBe("admin@example.org");
+  });
+});
+
+describe("bootstrapInsertConflictMessage", () => {
+  it("returns a clear duplicate-email message for a 23505", () => {
+    const message = bootstrapInsertConflictMessage(
+      { code: "23505", message: "duplicate key value" },
+      "admin@example.org",
+    );
+    expect(message).toMatch(/admin@example\.org/);
+    expect(message).toMatch(/already exists/i);
+    expect(message).toMatch(/no authorization row was changed/i);
+  });
+
+  it("returns null for unrelated errors", () => {
+    expect(
+      bootstrapInsertConflictMessage(
+        { code: "23503", message: "foreign key violation" },
+        "admin@example.org",
+      ),
+    ).toBeNull();
+    expect(bootstrapInsertConflictMessage(null, "admin@example.org")).toBeNull();
   });
 });
 

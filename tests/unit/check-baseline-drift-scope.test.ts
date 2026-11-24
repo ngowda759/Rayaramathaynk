@@ -61,6 +61,38 @@ describe("check-baseline-drift-scope", () => {
     expect(r.out).toMatch(/changed tables \(1\): ai_settings/);
   });
 
+  it("allows only the known users email expression index change", () => {
+    const r = runWithDiff(
+      report(
+        "[*] Changed the `users` table\n" +
+          "  [*] Added index `users_email_lower_btrim_key` on columns `lower(btrim(email))`\n",
+      ),
+    );
+    expect(r.code).toBe(0);
+    expect(r.out).toMatch(/allowed known index change \(1\): users/);
+    expect(r.out).toMatch(/SCOPED RESULT: PASS/);
+  });
+
+  it("still fails when users has the known index plus any other change", () => {
+    const r = runWithDiff(
+      report(
+        "[*] Changed the `users` table\n" +
+          "  [*] Added index `users_email_lower_btrim_key` on columns `lower(btrim(email))`\n" +
+          "  [+] Added column `unexpected`\n",
+      ),
+    );
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
+  it("does not allow a different index on users", () => {
+    const r = runWithDiff(
+      report("[*] Changed the `users` table\n  [*] Added index `some_other_index`\n"),
+    );
+    expect(r.code).toBe(2);
+    expect(r.out).toMatch(/SCOPED RESULT: FAIL/);
+  });
+
   it("fails on a probable typo/mismap of an in-scope table (anti-evasion)", () => {
     const r = runWithDiff(report("[+] Added tables\n  - ai_knowledge_extra\n"));
     expect(r.code).toBe(2);

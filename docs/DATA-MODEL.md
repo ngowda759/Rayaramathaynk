@@ -63,7 +63,7 @@ type UserRole =
 ```
 
 **Indexes:**
-- `email` (unique)
+- `lower(btrim(email))` (unique; `users_email_lower_btrim_key` — case-insensitive, whitespace-trimmed)
 - `templeId, role`
 - `isActive, role`
 

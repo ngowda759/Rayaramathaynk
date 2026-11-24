@@ -64,33 +64,64 @@ function runDiff() {
   return { out: (r.stdout || "") + (r.stderr || ""), code: r.status ?? 1 };
 }
 
-/** Parse the diff text into { added:[], removed:[], changed:[] }. */
+/** Parse the diff text into { added:[], removed:[], changed:[], changedBodies:Map }. */
 function parseDiff(text) {
   const added = [];
   const removed = [];
   const changed = [];
+  const changedBodies = new Map();
   const lines = text.split("\n");
   let section = null;
+  let changedTable = null;
   for (const raw of lines) {
     const line = raw.replace(/\u001b\[[0-9;]*m/g, "").trim();
-    if (/^\[\+\] Added tables/.test(line)) { section = "added"; continue; }
-    if (/^\[-\] Removed tables/.test(line)) { section = "removed"; continue; }
-    if (/^\[\*\] Changed the `([^`]+)` table/.test(line)) {
-      changed.push(line.match(/^\[\*\] Changed the `([^`]+)` table/)[1]);
+    if (/^\[\+\] Added tables/.test(line)) { section = "added"; changedTable = null; continue; }
+    if (/^\[-\] Removed tables/.test(line)) { section = "removed"; changedTable = null; continue; }
+    const changedMatch = line.match(/^\[\*\] Changed the `([^`]+)` table/);
+    if (changedMatch) {
+      changedTable = changedMatch[1];
+      changed.push(changedTable);
+      changedBodies.set(changedTable, []);
       section = "changedbody";
       continue;
     }
-    if (/^No difference detected/.test(line)) { section = null; continue; }
+    if (/^No difference detected/.test(line)) { section = null; changedTable = null; continue; }
     if (section === "added" || section === "removed") {
       const m = line.match(/^- (.+)$/);
       if (m) { (section === "added" ? added : removed).push(m[1].trim()); continue; }
       if (line === "") section = null;
     }
     if (section === "changedbody") {
-      if (line === "") section = null;
+      if (line === "") {
+        section = null;
+        changedTable = null;
+      } else if (changedTable) {
+        changedBodies.get(changedTable).push(line);
+      }
     }
   }
-  return { added, removed, changed };
+  return { added, removed, changed, changedBodies };
+}
+
+/**
+ * The one known in-scope difference introduced by the Supabase-only N-05 migration:
+ * the email expression index. Prisma cannot represent it in `schema.prisma`, so the
+ * scoped diff tolerates exactly this index and nothing else on `users`.
+ */
+const ALLOWED_IN_SCOPE_INDEX = {
+  table: "users",
+  index: "users_email_lower_btrim_key",
+};
+
+function isAllowedKnownIndexChange(table, lines) {
+  if (table !== ALLOWED_IN_SCOPE_INDEX.table) return false;
+  const meaningful = (lines || []).map((line) => line.trim()).filter(Boolean);
+  if (meaningful.length === 0) return false;
+  const addedIndex = new RegExp(
+    `^\\[\\*\\] Added index [\`"]?${ALLOWED_IN_SCOPE_INDEX.index}`,
+    "i",
+  );
+  return meaningful.every((line) => addedIndex.test(line));
 }
 
 /** True when `name` is a probable typo/mismap of an in-scope table. */
@@ -135,7 +166,7 @@ try {
     process.exit(0);
   }
 
-  const { added, removed, changed } = parseDiff(out);
+  const { added, removed, changed, changedBodies } = parseDiff(out);
 
   const inScopeAdded = added.filter((t) => scope.includes(t) || looksInScope(t, scope));
   const deferredAdded = added.filter((t) => !inScopeAdded.includes(t));
@@ -143,6 +174,10 @@ try {
   const deferredRemoved = removed.filter((t) => !inScopeRemoved.includes(t));
   const inScopeChanged = changed.filter((t) => scope.includes(t) || looksInScope(t, scope));
   const deferredChanged = changed.filter((t) => !inScopeChanged.includes(t));
+  const allowedChanged = inScopeChanged.filter((t) =>
+    isAllowedKnownIndexChange(t, changedBodies.get(t))
+  );
+  const disallowedChanged = inScopeChanged.filter((t) => !allowedChanged.includes(t));
 
   log("");
   log("=== OUT OF SCOPE (deferred to their own changes; not hidden) ===");
@@ -154,9 +189,10 @@ try {
   log(`  added tables (${inScopeAdded.length}): ${inScopeAdded.join(", ") || "(none)"}`);
   log(`  removed tables (${inScopeRemoved.length}): ${inScopeRemoved.join(", ") || "(none)"}`);
   log(`  changed tables (${inScopeChanged.length}): ${inScopeChanged.join(", ") || "(none)"}`);
+  log(`  allowed known index change (${allowedChanged.length}): ${allowedChanged.join(", ") || "(none)"}`);
 
   const fail =
-    inScopeAdded.length || inScopeRemoved.length || inScopeChanged.length || code !== 2;
+    inScopeAdded.length || inScopeRemoved.length || disallowedChanged.length || code !== 2;
 
   log("");
   if (fail) {

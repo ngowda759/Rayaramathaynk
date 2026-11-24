@@ -25,6 +25,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import {
+  bootstrapInsertConflictMessage,
   escapeLikePattern,
   filterLegacyProfilesByEmail,
   normalizeEmail,
@@ -189,6 +190,11 @@ async function main() {
         active: true,
       });
       if (error) {
+        const conflict = bootstrapInsertConflictMessage(error, email);
+        if (conflict) {
+          console.error(conflict);
+          process.exit(1);
+        }
         console.error("Failed to insert the authorization row:", error.message);
         process.exit(1);
       }

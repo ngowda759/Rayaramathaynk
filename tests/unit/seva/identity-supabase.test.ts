@@ -217,4 +217,73 @@ describe("supabaseIdentityAdapter", () => {
       });
     });
   });
+
+  describe("setAccessProfile", () => {
+    type Row = Record<string, unknown>;
+
+    function fakeSetAccessProfile(
+      existing: Row | null,
+      updateError: unknown = null,
+      insertError: unknown = null,
+    ) {
+      const updateEq = jest.fn().mockResolvedValue({ error: updateError });
+      const update = jest.fn().mockReturnValue({ eq: updateEq });
+      const insert = jest.fn().mockResolvedValue({ error: insertError });
+      const maybeSingle = jest.fn().mockResolvedValue({ data: existing, error: null });
+      const eq = jest.fn().mockReturnValue({ maybeSingle });
+      const select = jest.fn().mockReturnValue({ eq });
+      mockFrom.mockReturnValue({ select, update, insert });
+      return { update, insert, updateEq };
+    }
+
+    it("normalizes the email before updating an existing profile", async () => {
+      const { update, updateEq } = fakeSetAccessProfile({ id: "row-1" });
+
+      await supabaseIdentityAdapter.setAccessProfile("uid-1", {
+        email: "  Counter@Example.ORG ",
+      });
+
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "counter@example.org" }),
+      );
+      expect(updateEq).toHaveBeenCalledWith("id", "row-1");
+    });
+
+    it("maps a duplicate email update (23505) to a validation error", async () => {
+      fakeSetAccessProfile(
+        { id: "row-1" },
+        {
+          code: "23505",
+          message: 'duplicate key value violates unique constraint "users_email_lower_btrim_key"',
+        },
+      );
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "dup@example.org" }),
+      ).rejects.toMatchObject({ code: "validation" });
+    });
+
+    it("maps a duplicate email insert (23505) to a validation error", async () => {
+      fakeSetAccessProfile(
+        null,
+        null,
+        {
+          code: "23505",
+          message: 'duplicate key value violates unique constraint "users_email_lower_btrim_key"',
+        },
+      );
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "dup@example.org" }),
+      ).rejects.toMatchObject({ code: "validation" });
+    });
+
+    it("still maps other database failures to internal", async () => {
+      fakeSetAccessProfile({ id: "row-1" }, { code: "XX000", message: "boom" });
+
+      await expect(
+        supabaseIdentityAdapter.setAccessProfile("uid-1", { email: "x@example.org" }),
+      ).rejects.toMatchObject({ code: "internal" });
+    });
+  });
 });

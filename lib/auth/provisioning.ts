@@ -38,9 +38,14 @@ export function isUniqueViolation(error: unknown): boolean {
   return code === "23505" || /duplicate key|already exists/i.test(message || "");
 }
 
+/** Canonical stored/looked-up address: trimmed and lower-cased. */
+export function normalizeEmailAddress(raw: string | null | undefined): string {
+  return (raw ?? "").trim().toLowerCase();
+}
+
 /** `email.ilike."<escaped>"` — case-insensitive equality with no wildcards. */
 export function emailEqualsFilter(email: string): string {
-  return `email.ilike.${quoteFilterValue(escapeLikePattern(email.trim().toLowerCase()))}`;
+  return `email.ilike.${quoteFilterValue(escapeLikePattern(normalizeEmailAddress(email)))}`;
 }
 
 export interface EmailConflictRow {
@@ -65,7 +70,7 @@ export async function findEmailConflicts(
   email: string | null | undefined,
   callerUid: string
 ): Promise<{ ok: true; conflicts: EmailConflictRow[] } | { ok: false }> {
-  const normalized = typeof email === "string" ? email.trim().toLowerCase() : "";
+  const normalized = normalizeEmailAddress(email);
   if (!normalized) return { ok: true, conflicts: [] };
 
   const { data, error } = await supabase
@@ -149,6 +154,8 @@ export async function provisionDevoteeRow<Row extends { auth_user_id: string | n
     return { status: "unverified" };
   }
 
+  const normalizedEmail = normalizeEmailAddress(email);
+
   const { data: own, error: ownError } = await supabase
     .from("users")
     .select(columns)
@@ -160,14 +167,14 @@ export async function provisionDevoteeRow<Row extends { auth_user_id: string | n
     return { status: "linked", row: own as unknown as Row };
   }
 
-  const conflictCheck = await findEmailConflicts(supabase, email, uid);
+  const conflictCheck = await findEmailConflicts(supabase, normalizedEmail, uid);
   if (!conflictCheck.ok) return { status: "error" };
   if (conflictCheck.conflicts.length > 0) return { status: "conflict" };
 
   const { data: created, error: insertError } = await supabase
     .from("users")
     .insert({
-      email: email || "",
+      email: normalizedEmail,
       role: "devotee",
       active: true,
       display_name: displayName,

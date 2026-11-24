@@ -70,6 +70,16 @@ export function normalizeEmail(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
+/** A clear operator-facing message for a unique violation on the bootstrap insert, or null. */
+export function bootstrapInsertConflictMessage(
+  error: { code?: string | null; message?: string | null } | null | undefined,
+  email: string,
+): string | null {
+  if (!error) return null;
+  if (error.code !== "23505" && !/duplicate key|already exists/i.test(error.message || "")) return null;
+  return `An account with the email ${email} already exists (unique constraint). No authorization row was changed.`;
+}
+
 /**
  * Escape the LIKE metacharacters in a user-supplied email so an `ilike` lookup
  * cannot be widened by a `%` or `_` inside an address. Postgres treats `\` as the

@@ -711,7 +711,7 @@ describe("(j) the reviewed allowlist is explicit and intact", () => {
   const approved = evalParser("m.APPROVED_PENDING_MIGRATIONS") as string[];
   const withheld = evalParser("m.AWAITING_VERIFICATION") as string[];
 
-  it("approves exactly the six reviewed migrations", () => {
+  it("approves exactly the seven reviewed migrations", () => {
     expect(approved).toEqual([
       "20261109000000",
       "20261109000001",
@@ -719,6 +719,7 @@ describe("(j) the reviewed allowlist is explicit and intact", () => {
       "20261201000000",
       "20261202000000",
       "20261203000000",
+      "20261204000000",
     ]);
   });
 
