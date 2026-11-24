@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { templeAreasService } from "@/services/temple-areas.service";
 
 export async function GET(
@@ -25,7 +25,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "temple_areas.write");
   if (!auth.ok) return auth.response;
 
   try {
@@ -44,7 +44,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "temple_areas.delete");
   if (!auth.ok) return auth.response;
 
   try {

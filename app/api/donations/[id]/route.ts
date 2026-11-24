@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAdminUser } from "@/lib/auth/admin-auth";
+import { requireAdminCapability } from "@/lib/auth/admin-capabilities";
 import { allowPublicWrite } from "@/lib/api/public-rate-limit";
 import { donationAdminUpdateSchema } from "@/lib/validation/public-submissions";
 import { parseJsonBody } from "@/lib/validation/http";
@@ -8,17 +8,15 @@ import { donationService } from "@/services/donation.server";
 
 /**
  * Donation reads and edits are administrative: `donations` is deny-all under RLS and
- * carries donor contact and payment details. The admin console uses the guarded
- * `/api/admin/donations` routes; these aliases are kept for compatibility but are
- * guarded with the same `requireAdminUser` check.
+ * carries donor contact and payment details. The admin console uses the capability-
+ * guarded `/api/admin/donations` routes; these aliases are kept for compatibility and
+ * enforce the same F-04 capability policy (read / update / super-admin-only delete).
  *
- * Before this guard existed, anyone could read a donation by id (exposing donor
- * contact details), overwrite it, or delete it. The PATCH body is now validated
- * against an allow-list, so an admin request cannot store a malformed value or
- * smuggle a column the update does not support.
+ * The PATCH body is validated against an allow-list, so an admin request cannot store
+ * a malformed value or smuggle a column the update does not support.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "donations.read");
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
@@ -32,7 +30,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "donations.update");
   if (!auth.ok) return auth.response;
 
   if (!allowPublicWrite(request, { scope: "donations:update", identity: auth.user.uid, limit: 60, windowMs: 60_000 })) {
@@ -58,7 +56,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireAdminUser(request);
+  const auth = await requireAdminCapability(request, "donations.delete");
   if (!auth.ok) return auth.response;
 
   if (!allowPublicWrite(request, { scope: "donations:delete", identity: auth.user.uid, limit: 60, windowMs: 60_000 })) {

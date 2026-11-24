@@ -197,10 +197,17 @@ Authorization is enforced per operation, not per "is an admin" check.
 | Settings: general read | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Settings: general write | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Settings: finance read | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Settings: device read | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Settings: finance / device write | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Donations: read | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Donations: update | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Donations / members / volunteers: delete | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Bookings: read | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Bookings: update | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Bookings: delete | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Temple areas: read | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+| Temple areas: write | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Temple areas: delete | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Donations / bookings / temple areas / members / volunteers: delete | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | AI settings: read | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
 | AI settings: write | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | AI knowledge import | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -216,6 +223,14 @@ Authorization is enforced per operation, not per "is an admin" check.
 `billing` is finance-read only; it never inherits general admin writes.
 `office_staff` is deny-by-default for every privileged operation. Unmapped roles deny.
 
+The legacy admin aliases enforce the same map (F-05): `/api/donations/[id]`
+(`donations.read` / `donations.update` / `donations.delete`), `/api/bookings/[id]`
+(`bookings.read` / `bookings.update` / `bookings.delete`; the devotee owner-read and
+payment-declaration branches are unchanged), and the `/api/temple-areas` writes
+(`temple_areas.write` / `temple_areas.delete`). `GET /api/admin/settings/[key]` is
+checked per document: `device` needs `settings.device.read`, `financeSettings` needs
+`settings.finance.read`, and every other document needs `settings.general.read`.
+
 Seva operations are unchanged: `/api/seva/**` keeps its own operation matrix in
 `lib/seva/permissions.ts` and `lib/seva/server/auth.ts`.
 
@@ -226,7 +241,9 @@ Seva operations are unchanged: `/api/seva/**` keeps its own operation matrix in
 - `POST /api/volunteer` is the public application form; `GET /api/volunteer` is
   admin-only (`volunteers.read`).
 - `/api/donations`, `/api/bookings`, `/api/profile/*` and `/api/ai/chat/*` keep their
-  verified-token/ownership checks; they are not admin-console routes.
+  verified-token/ownership checks; they are not admin-console routes. Their legacy
+  admin aliases (`/api/donations/[id]`, `/api/bookings/[id]`) additionally enforce the
+  capability map above.
 - `/api/public/**` is public by design and projects only public fields.
 
 ### Authorization Middleware

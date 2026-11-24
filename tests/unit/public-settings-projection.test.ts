@@ -32,10 +32,24 @@ jest.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: mockFrom }),
 }));
 
-const mockRequireAdminUser = jest.fn();
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: (...args: unknown[]) => mockRequireAdminUser(...args),
-}));
+const mockVerifyAdminUserResult = jest.fn();
+jest.mock("@/lib/auth/admin-auth", () => {
+  const { NextResponse } = jest.requireActual("next/server");
+  return {
+    verifyAdminUserResult: (...args: unknown[]) => mockVerifyAdminUserResult(...args),
+    requireAdminUser: async (request: unknown) => {
+      const result = await mockVerifyAdminUserResult(request);
+      if (result.ok) return { ok: true, user: result.user };
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: result.message, reason: result.reason },
+          { status: result.status },
+        ),
+      };
+    },
+  };
+});
 
 import { GET as publicGet } from "@/app/api/public/settings/[key]/route";
 import { GET as adminGet } from "@/app/api/admin/settings/[key]/route";
@@ -328,9 +342,10 @@ describe("public donation compatibility", () => {
 
 describe("GET /api/admin/settings/[key] (unchanged)", () => {
   it("returns the complete finance document, including billing, for an authorized admin", async () => {
-    mockRequireAdminUser.mockResolvedValue({
+    mockVerifyAdminUserResult.mockResolvedValue({
       ok: true,
-      user: { uid: "admin-1", email: "a@b.c", role: "super_admin" },
+      provider: "supabase",
+      user: { uid: "admin-1", email: "a@b.c", role: "super_admin", provider: "supabase" },
     });
     storedDocument = SENSITIVE_FINANCE_DOC;
 
@@ -348,9 +363,11 @@ describe("GET /api/admin/settings/[key] (unchanged)", () => {
   });
 
   it("rejects an unauthorized caller before any read", async () => {
-    mockRequireAdminUser.mockResolvedValue({
+    mockVerifyAdminUserResult.mockResolvedValue({
       ok: false,
-      response: Response.json({ error: "Unauthorized" }, { status: 401 }),
+      reason: "missing_token",
+      status: 401,
+      message: "Missing token",
     });
 
     const request = { headers: { get: () => null } } as any;

@@ -25,6 +25,7 @@ export const ADMIN_CAPABILITIES = [
   "settings.general.write",
   "settings.finance.read",
   "settings.finance.write",
+  "settings.device.read",
   "settings.device.write",
   "donations.read",
   "donations.update",
@@ -36,6 +37,8 @@ export const ADMIN_CAPABILITIES = [
   "volunteers.write",
   "volunteers.delete",
   "bookings.read",
+  "bookings.update",
+  "bookings.delete",
   "analytics.read",
   "analytics.write",
   "dashboard.read",
@@ -141,13 +144,16 @@ const BILLING: readonly AdminCapability[] = [
 const OFFICE_STAFF: readonly AdminCapability[] = [];
 
 /**
- * Super-admin-only operations: the counter's UPI payee, device security,
- * deletion of money/people records, and user deletion.
+ * Super-admin-only operations: the counter's UPI payee, device read/write,
+ * deletion of money/booking/temple-area records, and people/user deletion.
  */
 const SUPER_ADMIN_ONLY: ReadonlySet<AdminCapability> = new Set<AdminCapability>([
   "settings.finance.write",
+  "settings.device.read",
   "settings.device.write",
   "donations.delete",
+  "bookings.delete",
+  "temple_areas.delete",
   "members.delete",
   "volunteers.delete",
   "users.delete",

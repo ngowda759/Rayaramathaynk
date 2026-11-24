@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requireAdminCapability, type AdminCapability } from "@/lib/auth/admin-capabilities";
 import { requireAdminUser } from "@/lib/auth/admin-auth";
 import {
   getSettingsDocument,
   isSettingsDocumentKey,
   saveSettingsDocument,
+  type SettingsDocumentKey,
 } from "@/services/settings-document.service";
 
 /**
  * Documents only a super admin may write. `financeSettings` carries the
  * counter's UPI payee (docs/SECURITY.md §"Counter UPI id"); `device` carries
- * device-security configuration. Reads stay available to the console.
+ * device-security configuration.
  */
 const SUPER_ADMIN_ONLY_SETTINGS: ReadonlySet<string> = new Set(["financeSettings", "device"]);
 
@@ -18,23 +20,40 @@ const SUPER_ADMIN_ONLY_SETTINGS: ReadonlySet<string> = new Set(["financeSettings
 const SETTINGS_WRITE_ROLES: ReadonlySet<string> = new Set(["super_admin", "temple_admin", "admin"]);
 
 /**
+ * The capability a reader needs, per document key. `device` is super-admin-only;
+ * the counter's finance document needs the finance read; every other document is
+ * general settings. Keys not listed fall back to general settings.
+ */
+const SETTINGS_READ_CAPABILITY: Partial<Record<SettingsDocumentKey, AdminCapability>> = {
+  financeSettings: "settings.finance.read",
+  device: "settings.device.read",
+};
+const DEFAULT_SETTINGS_READ_CAPABILITY: AdminCapability = "settings.general.read";
+
+/**
  * Admin read/write for a website settings document.
  *
  * Replaces the direct browser `getDoc`/`setDoc` calls the settings admin pages made
  * against the Firestore `settings` collection. `settings_documents` is deny-all under
- * RLS, so both handlers are guarded by `requireAdminUser` and use the service-role
- * client inside the service. The authenticated admin token is the same one the
- * homepage and guru-parampara settings routes use.
+ * RLS, so both handlers use the service-role client inside the service.
+ *
+ * Reads are capability-checked per document: `device` is super-admin-only, the counter
+ * finance document needs `settings.finance.read`, and everything else needs
+ * `settings.general.read`. Writes keep the existing role checks below.
  */
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ key: string }> }
 ) {
-  const auth = await requireAdminUser(request);
+  const { key } = await params;
+  const capability = isSettingsDocumentKey(key)
+    ? (SETTINGS_READ_CAPABILITY[key] ?? DEFAULT_SETTINGS_READ_CAPABILITY)
+    : DEFAULT_SETTINGS_READ_CAPABILITY;
+
+  const auth = await requireAdminCapability(request, capability);
   if (!auth.ok) return auth.response;
 
-  const { key } = await params;
   if (!isSettingsDocumentKey(key)) {
     return NextResponse.json({ error: "Unknown settings document" }, { status: 404 });
   }

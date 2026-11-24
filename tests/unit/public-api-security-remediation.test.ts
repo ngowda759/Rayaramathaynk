@@ -283,9 +283,10 @@ jest.mock("@/lib/auth/verify-id-token", () => ({
   verifyBearerIdToken: jest.fn(),
 }));
 
-jest.mock("@/lib/auth/admin-auth", () => ({
-  requireAdminUser: jest.fn(),
-}));
+jest.mock("@/lib/auth/admin-auth", () => {
+  const actual = jest.requireActual("@/lib/auth/admin-auth");
+  return { ...actual, verifyAdminUserResult: jest.fn() };
+});
 
 const mockUploadProfileImage = jest.fn();
 const mockDeleteProfileImage = jest.fn();
@@ -407,8 +408,12 @@ describe("F-A14 remediation: rate-limit coverage", () => {
   });
 
   it("DELETE /api/bookings/[id] is rate-limited for an admin", async () => {
-    const { requireAdminUser } = await import("@/lib/auth/admin-auth");
-    (requireAdminUser as jest.Mock).mockResolvedValue({ ok: true, user: { uid: "admin-1" } });
+    const { verifyAdminUserResult } = await import("@/lib/auth/admin-auth");
+    (verifyAdminUserResult as jest.Mock).mockResolvedValue({
+      ok: true,
+      provider: "supabase",
+      user: { uid: "admin-1", email: "a@e.org", role: "super_admin", provider: "supabase" },
+    });
     const { DELETE } = await import("@/app/api/bookings/[id]/route");
     const ip = uniqueIp();
     let sawTooMany = false;
