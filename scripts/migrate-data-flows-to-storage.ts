@@ -364,7 +364,6 @@ async function main(): Promise<void> {
       if (!entry.dataset) continue;
       await publishPanchangaYearDataset(storage, entry.dataset, {
         updateCurrent: false,
-        overwriteExisting: false,
       });
       published.panchangaYears.push(entry.year);
       console.log(`Published Panchanga ${entry.year}`);
@@ -372,7 +371,7 @@ async function main(): Promise<void> {
 
     for (const entry of aaradhane) {
       if (!entry.dataset) continue;
-      await publishAaradhaneYearDataset(storage, entry.dataset, { updateCurrent: false });
+      await publishAaradhaneYearDataset(storage, entry.dataset, { advanceCurrent: false });
       published.aaradhaneYears.push(entry.year);
       console.log(`Published Aaradhane ${entry.year}`);
     }

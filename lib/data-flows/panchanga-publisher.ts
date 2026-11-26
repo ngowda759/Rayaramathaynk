@@ -192,8 +192,6 @@ export async function publishPanchangaRecord(
 export interface PublishPanchangaYearOptions {
   updateCurrent?: boolean;
   verifyAttempts?: number;
-  /** Refuse to replace an existing object with different content. */
-  overwriteExisting?: boolean;
   /**
    * Require every calendar date in the year. Defaults to true for bulk imports;
    * set false only for a deliberately partial audit copy.
@@ -207,6 +205,33 @@ export interface PublishPanchangaYearResult {
   dailyPaths: string[];
   currentPath: string | null;
   dayCount: number;
+}
+
+/** Read one existing object and decide whether it can be written. */
+async function preflightYearObject(
+  storage: ObjectStorage,
+  path: string,
+  expected: unknown,
+  step: "daily" | "yearly"
+): Promise<"write" | "skip"> {
+  const existing = await storage.getText(path);
+  if (!existing.ok || existing.text === null) {
+    if (isStorageNotFound(existing)) return "write";
+    throw new PanchangaPublishError(step, existing.error ?? `could not read ${path}`);
+  }
+
+  const parsed = parseJson(existing.text);
+  if (!parsed.ok) {
+    throw new PanchangaPublishError(
+      step,
+      `${path} already exists but is not valid JSON (${parsed.error}); refusing to overwrite it`
+    );
+  }
+  if (jsonEqual(parsed.value, expected)) return "skip";
+  throw new PanchangaPublishError(
+    step,
+    `${path} already exists with different content; refusing to overwrite it`
+  );
 }
 
 /**
@@ -236,48 +261,32 @@ export async function publishPanchangaYearDataset(
   const dataset = validation.value;
   const attempts = options.verifyAttempts ?? 2;
   const dailyPaths: string[] = [];
+  const plannedWrites: Array<{
+    path: string;
+    value: unknown;
+    step: "daily" | "yearly";
+  }> = [];
 
-  for (const [date, record] of Object.entries(dataset.days)) {
+  // Atomic preflight: inspect every object before the first write. A conflict,
+  // invalid JSON or unreadable object on the last daily record still leaves
+  // Storage untouched.
+  for (const [date, record] of Object.entries(dataset.days).sort(([a], [b]) =>
+    a.localeCompare(b)
+  )) {
     const path = panchangaDailyPath(date);
-    if (!options.overwriteExisting) {
-      const existing = await storage.getText(path);
-      if (existing.ok && existing.text !== null) {
-        const parsed = parseJson(existing.text);
-        if (!parsed.ok || !jsonEqual(parsed.value, record)) {
-          throw new PanchangaPublishError(
-            "daily",
-            `${path} already exists with different content; refusing to overwrite it`
-          );
-        }
-        dailyPaths.push(path);
-        continue;
-      }
-      if (!isStorageNotFound(existing)) {
-        throw new PanchangaPublishError("daily", existing.error ?? `could not read ${path}`);
-      }
-    }
-    await writeAndVerify(storage, path, record, "daily", attempts);
     dailyPaths.push(path);
+    const decision = await preflightYearObject(storage, path, record, "daily");
+    if (decision === "write") plannedWrites.push({ path, value: record, step: "daily" });
   }
 
   const yearPath = panchangaYearPath(dataset.year);
-  if (!options.overwriteExisting) {
-    const existingYear = await storage.getText(yearPath);
-    if (existingYear.ok && existingYear.text !== null) {
-      const parsed = parseJson(existingYear.text);
-      if (!parsed.ok || !jsonEqual(parsed.value, dataset)) {
-        throw new PanchangaPublishError(
-          "yearly",
-          `${yearPath} already exists with different content; refusing to overwrite it`
-        );
-      }
-    } else if (!isStorageNotFound(existingYear)) {
-      throw new PanchangaPublishError("yearly", existingYear.error ?? `could not read ${yearPath}`);
-    } else {
-      await writeAndVerify(storage, yearPath, dataset, "yearly", attempts);
-    }
-  } else {
-    await writeAndVerify(storage, yearPath, dataset, "yearly", attempts);
+  const yearDecision = await preflightYearObject(storage, yearPath, dataset, "yearly");
+  if (yearDecision === "write") {
+    plannedWrites.push({ path: yearPath, value: dataset, step: "yearly" });
+  }
+
+  for (const write of plannedWrites) {
+    await writeAndVerify(storage, write.path, write.value, write.step, attempts);
   }
 
   let currentPath: string | null = null;

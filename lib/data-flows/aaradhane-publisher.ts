@@ -5,6 +5,10 @@
  * new one replaces it. If the existing dataset is present but invalid, the
  * publisher refuses to overwrite it: an unreadable last-known-good file is a
  * reason to stop, not a reason to replace it with a version nobody can compare.
+ *
+ * `current.json` is opt-in via `advanceCurrent`. Historical regeneration only
+ * replaces `years/YYYY.json` and its snapshot, so an old year can never become
+ * the current dataset by accident.
  */
 
 import { jsonEqual, parseJson, serializeJson } from "./json";
@@ -32,7 +36,11 @@ export class AaradhanePublishError extends Error {
 }
 
 export interface PublishAaradhaneOptions {
-  updateCurrent?: boolean;
+  /**
+   * Advance `current.json` to this dataset. Off by default so regenerating a
+   * historical year never makes an old dataset current.
+   */
+  advanceCurrent?: boolean;
   verifyAttempts?: number;
 }
 
@@ -40,6 +48,7 @@ export interface PublishAaradhaneResult {
   year: number;
   yearPath: string;
   currentPath: string;
+  currentUpdated: boolean;
   snapshotPath: string | null;
   eventCount: number;
   unchanged: boolean;
@@ -150,7 +159,8 @@ export async function publishAaradhaneYearDataset(
     await writeAndVerify(storage, yearPath, dataset, "yearly", attempts);
   }
 
-  if (options.updateCurrent !== false) {
+  const currentUpdated = options.advanceCurrent === true;
+  if (currentUpdated) {
     await writeAndVerify(storage, currentPath, dataset, "current", attempts);
   }
 
@@ -158,6 +168,7 @@ export async function publishAaradhaneYearDataset(
     year,
     yearPath,
     currentPath,
+    currentUpdated,
     snapshotPath,
     eventCount: dataset.events.length,
     unchanged,

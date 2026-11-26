@@ -116,16 +116,26 @@ never written before the daily record has been verified.
 3. If a valid previous dataset exists and differs, writes it to
    `snapshots/YYYY/<generated-at>.json` first.
 4. Writes the new yearly dataset and verifies it.
-5. Updates `current.json` unless `updateCurrent` is false.
+5. Advances `current.json` only when `advanceCurrent: true` is passed.
 
-`publishPanchangaYearDataset` (the historical import path) additionally defaults
-to `requireCompleteYear: true`, so it rejects a year with any missing date,
-an invalid date, a key/record mismatch, an out-of-year record, or a duplicate
-record before writing the first object. Partial bulk copies require an explicit
+`current.json` is intentionally not updated by default. Regenerating a historical
+year replaces only `years/YYYY.json` and its snapshot, so an old year cannot
+become the current dataset by accident. The scheduled Aaradhane workflow passes
+`--advance-current`; a manual run must set `advance_current: true` and
+`dry_run: false`. The historical import tool always passes
+`advanceCurrent: false`.
+
+`publishPanchangaYearDataset` (the historical import path) preflights every daily
+object and the yearly object before the first write. It aborts with zero writes
+if any existing object has different content, invalid JSON or an unreadable
+response. Missing or identical objects proceed. It also defaults to
+`requireCompleteYear: true`, so it rejects a year with any missing date, an
+invalid date, a key/record mismatch, an out-of-year record, or a duplicate record
+before writing the first object. Partial bulk copies require an explicit
 `requireCompleteYear: false` and are not used by the import tool.
 
 All writes are upserts on a fixed object key, and verification compares the
-read-back payload with the intended payload.
+read-back payload with the intended payload after every write.
 
 ## 4. Readers
 
@@ -180,6 +190,14 @@ the events. A separate `publish-aaradhane` job is gated as follows:
 The publish job repeats the manual check in a refusal step before the write
 command as defense in depth. No step passes `--apply`; the database write path is
 not used.
+
+`current.json` advance rules:
+
+- scheduled run: allowed, because it publishes the automatically computed
+  next-year dataset; the step passes `--advance-current`.
+- manual run: only when `advance_current: true` **and** `dry_run: false`.
+- historical year regeneration: `advance_current` must remain `false`; the
+  publisher then changes only `years/YYYY.json` and its snapshot.
 
 Both workflows run the shared `scripts/lib/guard-approved-supabase-url.mjs` guard
 before reaching the approved project.
@@ -291,7 +309,9 @@ The owner must approve each write step. The safe order is:
    `/api/panchanga/daily/<date>`.
 6. **Publish Aaradhane.** Enable `AARADHANE_STORAGE_PUBLISH_ENABLED=true` only
    after approval, then run a manual dispatch with `dry_run: false` (or the
-   scheduled January run). Verify `/api/aaradhane/datasets/<year>` and
+   scheduled January run). Set `advance_current: true` only when the published
+   year should become `/api/aaradhane/datasets/current`; leave it `false` for a
+   historical year. Verify `/api/aaradhane/datasets/<year>` and, when advanced,
    `/api/aaradhane/datasets/current`.
 7. **Reader cutover verification.** Load the home widget, digital-signage page
    and a Raya AI Panchanga question. Each must show live data for the current IST

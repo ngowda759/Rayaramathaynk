@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: true
+      advance_current:
+        description: "Also update Data_flows/Aaradhane/current.json. Only applies when dry_run=false. Historical regeneration should leave this false."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -136,14 +141,23 @@ jobs:
         run: node scripts/lib/guard-approved-supabase-url.mjs
 
       - name: Publish Aaradhane dataset
+        env:
+          ADVANCE_CURRENT: ${{ github.event_name == 'schedule' || inputs.advance_current == true }}
         run: |
-          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year "$TARGET_YEAR" --publish
+          args=(--year "$TARGET_YEAR" --publish)
+          if [ "$ADVANCE_CURRENT" = "true" ]; then
+            args+=(--advance-current)
+          fi
+          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts "${args[@]}"
 
       - name: Summary
+        env:
+          ADVANCE_CURRENT: ${{ github.event_name == 'schedule' || inputs.advance_current == true }}
         run: |
           {
             echo "## Aaradhane publication"
             echo ""
             echo "- Year: $TARGET_YEAR"
             echo "- Destination: Supabase Storage Data_flows/Aaradhane/years/$TARGET_YEAR.json"
+            echo "- Current pointer: $ADVANCE_CURRENT"
           } >> "$GITHUB_STEP_SUMMARY"

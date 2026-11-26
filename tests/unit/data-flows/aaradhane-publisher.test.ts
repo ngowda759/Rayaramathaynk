@@ -20,17 +20,54 @@ import {
 const YEAR = 2027;
 
 describe("Aaradhane publisher", () => {
-  it("publishes a yearly dataset and updates current", async () => {
+  it("publishes a yearly dataset and preserves current by default", async () => {
     const storage = new MemoryStorage();
     const dataset = aaradhaneDataset(YEAR, raghavendraEvents(YEAR));
 
     const result = await publishAaradhaneYearDataset(storage, dataset);
 
     expect(result.eventCount).toBe(3);
-    expect(storage.writes).toEqual(
-      expect.arrayContaining([aaradhaneYearPath(YEAR), aaradhaneCurrentPath()])
-    );
+    expect(result.currentUpdated).toBe(false);
+    expect(storage.writes).toEqual([aaradhaneYearPath(YEAR)]);
     expect(storage.objects.has(aaradhaneYearPath(YEAR))).toBe(true);
+    expect(storage.objects.has(aaradhaneCurrentPath())).toBe(false);
+  });
+
+  it("advances current only when explicitly requested", async () => {
+    const storage = new MemoryStorage();
+    const dataset = aaradhaneDataset(YEAR, raghavendraEvents(YEAR));
+
+    const result = await publishAaradhaneYearDataset(storage, dataset, {
+      advanceCurrent: true,
+    });
+
+    expect(result.currentUpdated).toBe(true);
+    expect(storage.writes).toEqual([aaradhaneYearPath(YEAR), aaradhaneCurrentPath()]);
+    expect(JSON.parse(storage.objects.get(aaradhaneCurrentPath())!).year).toBe(YEAR);
+  });
+
+  it("keeps current unchanged when regenerating a historical year", async () => {
+    const storage = new MemoryStorage();
+    const current = aaradhaneDataset(2026, raghavendraEvents(2026));
+    storage.seed(aaradhaneCurrentPath(), current);
+    const before = storage.objects.get(aaradhaneCurrentPath());
+
+    const first = aaradhaneDataset(YEAR, raghavendraEvents(YEAR));
+    storage.seed(aaradhaneYearPath(YEAR), first);
+
+    const regenerated = aaradhaneDataset(YEAR, [
+      ...raghavendraEvents(YEAR),
+      aaradhaneEvent(YEAR),
+    ]);
+    const result = await publishAaradhaneYearDataset(storage, regenerated);
+
+    expect(result.currentUpdated).toBe(false);
+    expect(result.snapshotPath).toBe(
+      aaradhaneSnapshotPath(YEAR, first.metadata.generated_at)
+    );
+    expect(storage.objects.has(result.snapshotPath!)).toBe(true);
+    expect(storage.objects.get(aaradhaneCurrentPath())).toBe(before);
+    expect(storage.writes).toEqual([result.snapshotPath, aaradhaneYearPath(YEAR)]);
   });
 
   it("snapshots the previous dataset before replacing it", async () => {
@@ -85,6 +122,22 @@ describe("Aaradhane publisher", () => {
     const result = await publishAaradhaneYearDataset(storage, dataset);
 
     expect(result.unchanged).toBe(true);
+    expect(result.currentUpdated).toBe(false);
+    expect(storage.writes).toEqual([]);
+  });
+
+  it("can advance current for an unchanged yearly dataset when requested", async () => {
+    const storage = new MemoryStorage();
+    const dataset = aaradhaneDataset(YEAR, raghavendraEvents(YEAR));
+    await publishAaradhaneYearDataset(storage, dataset);
+    storage.writes.length = 0;
+
+    const result = await publishAaradhaneYearDataset(storage, dataset, {
+      advanceCurrent: true,
+    });
+
+    expect(result.unchanged).toBe(true);
+    expect(result.currentUpdated).toBe(true);
     expect(storage.writes).toEqual([aaradhaneCurrentPath()]);
   });
 

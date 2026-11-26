@@ -67,7 +67,7 @@ describe("Aaradhane publication gate", () => {
 
   it("keeps a defense-in-depth refusal before the publish command", () => {
     const refusalAt = publishJob.indexOf("Refuse manual dry-run publication");
-    const publishAt = publishJob.indexOf("scripts/generate-aaradhane.ts --year");
+    const publishAt = publishJob.indexOf('scripts/generate-aaradhane.ts "${args[@]}"');
     expect(refusalAt).toBeGreaterThan(-1);
     expect(publishAt).toBeGreaterThan(-1);
     expect(refusalAt).toBeLessThan(publishAt);
@@ -77,5 +77,13 @@ describe("Aaradhane publication gate", () => {
 
   it("leaves the manual dry_run input defaulting to preview", () => {
     expect(yaml).toMatch(/dry_run:[\s\S]*?default: true/);
+  });
+
+  it("advances current only on schedule or an explicit manual request", () => {
+    expect(publishJob).toContain(
+      "ADVANCE_CURRENT: ${{ github.event_name == 'schedule' || inputs.advance_current == true }}"
+    );
+    expect(publishJob).toContain("args+=(--advance-current)");
+    expect(yaml).toMatch(/advance_current:[\s\S]*?default: false/);
   });
 });

@@ -61,9 +61,13 @@ npm run generate:aaradhane -- --year 2027
 #### Option B: Publish the generated dataset to Storage
 
 ```bash
-# Generates from the Storage Panchanga source and writes
-# Data_flows/Aaradhane/years/YYYY.json plus current.json
+# Historical regeneration: writes years/YYYY.json and a snapshot,
+# but leaves current.json unchanged.
 npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year 2027 --publish
+
+# Explicitly advance the current pointer (scheduled workflow only, or an
+# owner-approved manual run of the latest year).
+npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year 2027 --publish --advance-current
 ```
 
 #### Option C: Apply to the Supabase events table (legacy)

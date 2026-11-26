@@ -55,7 +55,7 @@ npm run generate:aaradhane -- --year 2027 --dry-run
 |--------|----------|
 | Panchanga source | `Data_flows/Panchanga/years/{year}.json` |
 | Aaradhane dataset | `Data_flows/Aaradhane/years/{year}.json` |
-| Current dataset | `Data_flows/Aaradhane/current.json` |
+| Current dataset | `Data_flows/Aaradhane/current.json` (only advanced by an explicit request) |
 | Snapshots | `Data_flows/Aaradhane/snapshots/{year}/` |
 | Legacy export | `data/exports/aaradhane-events-{year}.json` |
 

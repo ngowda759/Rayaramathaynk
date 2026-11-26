@@ -164,6 +164,7 @@ export class MemoryStorage implements ObjectStorage {
   readonly objects = new Map<string, string>();
   readonly writes: string[] = [];
   readonly putFailures = new Set<string>();
+  readonly readFailures = new Set<string>();
   readonly corruptReads = new Map<string, string>();
 
   seed(path: string, value: unknown): void {
@@ -171,6 +172,9 @@ export class MemoryStorage implements ObjectStorage {
   }
 
   async getText(path: string): Promise<StorageGetResult> {
+    if (this.readFailures.has(path)) {
+      return { ok: false, text: null, status: 500, error: "forced read failure" };
+    }
     if (this.corruptReads.has(path)) {
       return { ok: true, text: this.corruptReads.get(path)!, status: 200 };
     }

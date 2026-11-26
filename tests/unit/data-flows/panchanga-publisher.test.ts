@@ -152,4 +152,64 @@ describe("Panchanga historical publication", () => {
     );
     expect(storage.writes).toEqual([]);
   });
+
+  it("aborts before the first write when the last daily object conflicts", async () => {
+    const storage = new MemoryStorage();
+    const dates = ["2026-01-01", "2026-01-02", "2026-01-03"];
+    const dataset = panchangaDataset(2026, dates);
+    const last = dates.at(-1)!;
+    storage.seed(
+      panchangaDailyPath(last),
+      panchangaRecord(last, {
+        tithi: {
+          ...panchangaRecord(last).tithi,
+          name: "Conflicting Tithi",
+        },
+      })
+    );
+
+    await expect(
+      publishPanchangaYearDataset(storage, dataset, { requireCompleteYear: false })
+    ).rejects.toMatchObject({ step: "daily" });
+    expect(storage.writes).toEqual([]);
+  });
+
+  it("aborts before the first write when the yearly object conflicts", async () => {
+    const storage = new MemoryStorage();
+    const dataset = panchangaDataset(2026, ["2026-01-01", "2026-01-02", "2026-01-03"]);
+    storage.seed(panchangaYearPath(2026), panchangaDataset(2026, ["2026-01-01"]));
+
+    await expect(
+      publishPanchangaYearDataset(storage, dataset, { requireCompleteYear: false })
+    ).rejects.toMatchObject({ step: "yearly" });
+    expect(storage.writes).toEqual([]);
+  });
+
+  it("aborts before the first write when a daily object is invalid JSON", async () => {
+    const storage = new MemoryStorage();
+    const dates = ["2026-01-01", "2026-01-02"];
+    const last = dates.at(-1)!;
+    storage.objects.set(panchangaDailyPath(last), "{not json");
+
+    await expect(
+      publishPanchangaYearDataset(storage, panchangaDataset(2026, dates), {
+        requireCompleteYear: false,
+      })
+    ).rejects.toMatchObject({ step: "daily" });
+    expect(storage.writes).toEqual([]);
+  });
+
+  it("aborts before the first write when a daily object is unreadable", async () => {
+    const storage = new MemoryStorage();
+    const dates = ["2026-01-01", "2026-01-02"];
+    const last = dates.at(-1)!;
+    storage.readFailures.add(panchangaDailyPath(last));
+
+    await expect(
+      publishPanchangaYearDataset(storage, panchangaDataset(2026, dates), {
+        requireCompleteYear: false,
+      })
+    ).rejects.toMatchObject({ step: "daily" });
+    expect(storage.writes).toEqual([]);
+  });
 });

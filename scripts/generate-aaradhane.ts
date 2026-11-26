@@ -18,6 +18,10 @@
  * Usage:
  *   npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year 2027
  *   npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year 2027 --publish
+ *   npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year 2027 --publish --advance-current
+ *
+ * `--advance-current` is opt-in. Historical regeneration publishes only
+ * `years/YYYY.json` (plus its snapshot) and leaves `current.json` untouched.
  */
 
 import { parseArgs } from "util";
@@ -55,6 +59,9 @@ USAGE:
 OPTIONS:
   --year, -y N     Generate events for year N (default: next year)
   --publish        Publish the generated dataset to Supabase Storage
+  --advance-current
+                   Also update Data_flows/Aaradhane/current.json (requires --publish).
+                   Off by default so historical regeneration never changes current.
   --apply          Write generated events to the Supabase events table
   --dry-run        Explicitly preview only. Cannot be combined with --apply.
   --check          Check that the yearly Panchanga source is reachable
@@ -97,6 +104,7 @@ async function main(): Promise<void> {
       apply: { type: "boolean", default: false },
       publish: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
+      "advance-current": { type: "boolean", default: false },
       check: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
     },
@@ -108,6 +116,10 @@ async function main(): Promise<void> {
   }
   if (values["dry-run"] && values.publish) {
     console.error("Error: --publish and --dry-run are mutually exclusive.");
+    process.exit(1);
+  }
+  if (values["advance-current"] && !values.publish) {
+    console.error("Error: --advance-current requires --publish.");
     process.exit(1);
   }
 
@@ -203,10 +215,16 @@ async function main(): Promise<void> {
       }
 
       const writeStorage = createSupabaseStorage(writeSettings);
-      const result = await publishAaradhaneYearDataset(writeStorage, datasetValidation.value);
+      const result = await publishAaradhaneYearDataset(writeStorage, datasetValidation.value, {
+        advanceCurrent: values["advance-current"],
+      });
       console.log(`\n\u2713 Published ${result.yearPath}`);
       console.log(`  Events: ${result.eventCount}`);
-      console.log(`  Current updated: ${result.currentPath}`);
+      console.log(
+        result.currentUpdated
+          ? `  Current updated: ${result.currentPath}`
+          : "  Current updated: no (use --advance-current to advance it)"
+      );
       console.log(`  Previous snapshot: ${result.snapshotPath ?? "(none)"}`);
     }
 
