@@ -86,6 +86,23 @@ export function daysInclusive(start: string, end: string): number {
   return Math.floor((endMs - startMs) / 86_400_000) + 1;
 }
 
+/**
+ * Every calendar date in `year`, in ascending order.
+ *
+ * Uses UTC arithmetic so leap days are included (366 dates) and 1900/2100-style
+ * century rules are respected by the JavaScript date engine.
+ */
+export function calendarDatesForYear(year: number): string[] {
+  if (!isValidYear(year)) throw new Error(`Invalid year: ${year}`);
+
+  const dates: string[] = [];
+  const endMs = Date.UTC(year + 1, 0, 1);
+  for (let ms = Date.UTC(year, 0, 1); ms < endMs; ms += 86_400_000) {
+    dates.push(new Date(ms).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 /** The ISO 8601 timestamp shape the Panchanga generator emits (offset required). */
 export function isIsoTimestamp(value: unknown): value is string {
   return (

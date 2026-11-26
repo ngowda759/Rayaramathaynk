@@ -2,11 +2,17 @@
  * @jest-environment node
  */
 import {
+  buildPanchangaYearDataset,
   validateAaradhaneYearDataset,
+  validateCompletePanchangaYear,
   validatePanchangaRecord,
   validatePanchangaYearDataset,
 } from "@/lib/data-flows/schemas";
-import { getIstDateString, isIsoTimestamp } from "@/lib/data-flows/time";
+import {
+  calendarDatesForYear,
+  getIstDateString,
+  isIsoTimestamp,
+} from "@/lib/data-flows/time";
 import {
   aaradhaneDataset,
   aaradhaneEvent,
@@ -102,6 +108,72 @@ describe("Panchanga year dataset validation", () => {
     const result = validatePanchangaYearDataset(dataset);
     expect(result.ok).toBe(false);
     expect(result.errors.join(" ")).toMatch(/outside the dataset year/);
+  });
+});
+
+describe("Panchanga calendar coverage", () => {
+  it("enumerates every date, including leap days", () => {
+    expect(calendarDatesForYear(2026)).toHaveLength(365);
+    expect(calendarDatesForYear(2027)).toHaveLength(365);
+    expect(calendarDatesForYear(2028)).toHaveLength(366);
+    expect(calendarDatesForYear(2028)).toContain("2028-02-29");
+    expect(calendarDatesForYear(2000)).toHaveLength(366);
+    expect(calendarDatesForYear(2100)).toHaveLength(365);
+    expect(calendarDatesForYear(2026)[0]).toBe("2026-01-01");
+    expect(calendarDatesForYear(2026)[364]).toBe("2026-12-31");
+  });
+
+  it("accepts a complete normal year", () => {
+    const year = 2026;
+    const dataset = panchangaDataset(year, calendarDatesForYear(year));
+    const result = validateCompletePanchangaYear(dataset, year);
+    expect(result.ok).toBe(true);
+    expect(result.value?.metadata.count).toBe(365);
+  });
+
+  it("rejects a normal year with one missing date", () => {
+    const year = 2026;
+    const dates = calendarDatesForYear(year).filter((date) => date !== "2026-06-15");
+    const dataset = panchangaDataset(year, dates);
+    const result = validateCompletePanchangaYear(dataset, year);
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toContain("1 of 365 calendar dates are missing");
+    expect(result.errors.join(" ")).toContain("2026-06-15");
+  });
+
+  it("accepts a complete leap year", () => {
+    const year = 2028;
+    const dataset = panchangaDataset(year, calendarDatesForYear(year));
+    const result = validateCompletePanchangaYear(dataset, year);
+    expect(result.ok).toBe(true);
+    expect(result.value?.metadata.count).toBe(366);
+  });
+
+  it("rejects a leap year missing 29 February", () => {
+    const year = 2028;
+    const dates = calendarDatesForYear(year).filter((date) => date !== "2028-02-29");
+    const dataset = panchangaDataset(year, dates);
+    const result = validateCompletePanchangaYear(dataset, year);
+    expect(result.ok).toBe(false);
+    expect(result.errors.join(" ")).toContain("2028-02-29");
+  });
+
+  it("rejects duplicate records instead of silently overwriting one", () => {
+    const record = panchangaRecord("2026-01-01");
+    expect(() =>
+      buildPanchangaYearDataset(2026, [record, record], "2026-01-01T00:00:00+05:30")
+    ).toThrow(/Duplicate Panchanga record for 2026-01-01/);
+  });
+
+  it("keeps invalid and out-of-year rejection in the base validator", () => {
+    const invalidKey = panchangaDataset(2026, ["2026-01-01"]);
+    invalidKey.days["2026-02-31"] = panchangaRecord("2026-01-01");
+    invalidKey.metadata.count = 2;
+    expect(validatePanchangaYearDataset(invalidKey).ok).toBe(false);
+
+    const outOfYear = panchangaDataset(2026, ["2026-01-01"]);
+    outOfYear.days["2026-01-01"] = panchangaRecord("2027-01-01");
+    expect(validatePanchangaYearDataset(outOfYear).ok).toBe(false);
   });
 });
 

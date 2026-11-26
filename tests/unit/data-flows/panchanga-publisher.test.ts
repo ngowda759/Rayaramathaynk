@@ -4,13 +4,15 @@
 import {
   PanchangaPublishError,
   publishPanchangaRecord,
+  publishPanchangaYearDataset,
 } from "@/lib/data-flows/panchanga-publisher";
 import {
   panchangaCurrentPath,
   panchangaDailyPath,
   panchangaYearPath,
 } from "@/lib/data-flows/paths";
-import { MemoryStorage, panchangaRecord } from "./fixtures";
+import { calendarDatesForYear } from "@/lib/data-flows/time";
+import { MemoryStorage, panchangaDataset, panchangaRecord } from "./fixtures";
 
 const DAY1 = "2026-11-24";
 const DAY2 = "2026-11-25";
@@ -102,5 +104,52 @@ describe("Panchanga publisher", () => {
 
     const yearly = JSON.parse(storage.objects.get(panchangaYearPath(2026))!);
     expect(Object.keys(yearly.days)).toEqual([DAY1]);
+  });
+});
+
+describe("Panchanga historical publication", () => {
+  it("refuses an incomplete normal year before writing anything", async () => {
+    const storage = new MemoryStorage();
+    const dates = calendarDatesForYear(2026).filter((date) => date !== "2026-06-15");
+
+    await expect(
+      publishPanchangaYearDataset(storage, panchangaDataset(2026, dates))
+    ).rejects.toThrow(/incomplete year 2026: 1 of 365 calendar dates are missing/);
+
+    expect(storage.writes).toEqual([]);
+  });
+
+  it("refuses a leap year missing 29 February before writing anything", async () => {
+    const storage = new MemoryStorage();
+    const dates = calendarDatesForYear(2028).filter((date) => date !== "2028-02-29");
+
+    await expect(
+      publishPanchangaYearDataset(storage, panchangaDataset(2028, dates))
+    ).rejects.toThrow(/2028-02-29/);
+
+    expect(storage.writes).toEqual([]);
+  });
+
+  it("accepts and publishes a complete normal year", async () => {
+    const storage = new MemoryStorage();
+    const dataset = panchangaDataset(2026, calendarDatesForYear(2026));
+    const result = await publishPanchangaYearDataset(storage, dataset, {
+      updateCurrent: false,
+    });
+
+    expect(result.dayCount).toBe(365);
+    expect(storage.objects.has(panchangaYearPath(2026))).toBe(true);
+    expect(storage.objects.has(panchangaCurrentPath())).toBe(false);
+  });
+
+  it("refuses out-of-year records before writing anything", async () => {
+    const storage = new MemoryStorage();
+    const dataset = panchangaDataset(2026, ["2026-01-01"]);
+    dataset.days["2026-01-01"] = panchangaRecord("2027-01-01");
+
+    await expect(publishPanchangaYearDataset(storage, dataset)).rejects.toThrow(
+      /outside the dataset year/
+    );
+    expect(storage.writes).toEqual([]);
   });
 });

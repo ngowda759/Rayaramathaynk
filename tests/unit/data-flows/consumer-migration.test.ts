@@ -99,6 +99,35 @@ describe("Application consumers", () => {
     expect(source).not.toMatch(/toISOString\(\)\.slice\(0, 10\)/);
   });
 
+  it("never serves a cache entry from another IST date", () => {
+    const source = read("lib/ai/retrieval/panchanga.ts");
+    expect(source).not.toMatch(/cachedPanchanga \?\?/);
+    expect(source).toContain("cachedDate === today");
+    expect(source).toContain("cachedDate === dateStr");
+    expect(source).toContain("sameDayCache");
+  });
+
+  it("does not use CMS or temple-timing values as today's Panchanga", () => {
+    const source = read("components/home/Panchanga.tsx");
+    expect(source).not.toMatch(/cms\./);
+    expect(source).not.toMatch(/homepage\?\.(morningOpen|eveningClose)/);
+    expect(source).toContain("liveStatus");
+    expect(source).toContain("Today's live Panchanga is unavailable");
+  });
+
+  it("shows an explicit unavailable state on the signage board", () => {
+    const source = read("app/(public)/display/page.tsx");
+    expect(source).toContain("panchangaStatus");
+    expect(source).toContain("Live Panchanga is unavailable");
+  });
+
+  it("blocks historical import when a year is incomplete", () => {
+    const source = read("scripts/migrate-data-flows-to-storage.ts");
+    expect(source).toContain("validateCompletePanchangaYear");
+    expect(source).toContain("entry.missingDays.length > 0");
+    expect(source).toContain("incompleteYears");
+  });
+
   it("never imports the service-role client into browser-facing code", () => {
     const browserFacing = [
       "components/home/Panchanga.tsx",

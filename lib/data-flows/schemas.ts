@@ -12,6 +12,7 @@ import { z } from "zod";
 
 import {
   IST_TIME_ZONE,
+  calendarDatesForYear,
   isDateInYear,
   isIsoDateTime,
   isIsoTimestamp,
@@ -373,6 +374,46 @@ export function validatePanchangaYearDataset(
   return result;
 }
 
+/**
+ * A complete-year dataset has exactly one record for every calendar date in its
+ * year, including 29 February in leap years.
+ *
+ * This is separate from `validatePanchangaYearDataset` because the daily
+ * publisher builds a partial year as the year progresses. Only bulk imports and
+ * historical publication must satisfy full coverage; missing days are never
+ * filled with placeholder astronomy.
+ */
+export function validateCompletePanchangaYear(
+  input: unknown,
+  expectedYear?: number
+): ValidationResult<PanchangaYearDataset> {
+  const base = validatePanchangaYearDataset(input, expectedYear);
+  if (!base.ok || !base.value) return base;
+
+  const dataset = base.value;
+  const expectedDates = calendarDatesForYear(dataset.year);
+  const expected = new Set(expectedDates);
+  const missing = expectedDates.filter((date) => !(date in dataset.days));
+  const unexpected = Object.keys(dataset.days).filter((date) => !expected.has(date));
+
+  const errors: string[] = [];
+  if (missing.length > 0) {
+    const preview = missing.slice(0, 10).join(", ");
+    errors.push(
+      `incomplete year ${dataset.year}: ${missing.length} of ${expectedDates.length} calendar dates are missing (${preview}${missing.length > 10 ? ", ..." : ""})`
+    );
+  }
+  if (unexpected.length > 0) {
+    const preview = unexpected.slice(0, 10).join(", ");
+    errors.push(
+      `year ${dataset.year} contains ${unexpected.length} date(s) outside its calendar (${preview}${unexpected.length > 10 ? ", ..." : ""})`
+    );
+  }
+
+  if (errors.length > 0) return { ok: false, value: null, errors };
+  return base;
+}
+
 export function validateAaradhaneYearDataset(
   input: unknown,
   expectedYear?: number
@@ -412,6 +453,9 @@ export function buildPanchangaYearDataset(
 ): PanchangaYearDataset {
   const days: Record<string, PanchangaRecord> = {};
   for (const record of records) {
+    if (days[record.date]) {
+      throw new Error(`Duplicate Panchanga record for ${record.date}`);
+    }
     days[record.date] = record;
   }
   return {

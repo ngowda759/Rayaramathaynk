@@ -92,8 +92,9 @@ export async function getTodayPanchanga(): Promise<RetrievedData<PanchangaData>>
     };
   } catch (error) {
     console.error("[Panchanga Retrieval] Error:", error);
+    const sameDayCache = cachedPanchanga && cachedDate === today ? cachedPanchanga : null;
     return {
-      data: cachedPanchanga ?? unavailable(today),
+      data: sameDayCache ?? unavailable(today),
       source: RetrievalType.FALLBACK,
       confidence: 0,
       retrievedAt: now,
@@ -149,8 +150,10 @@ export async function getPanchangaForDate(
     };
   } catch (error) {
     console.error("[Panchanga Retrieval] Error:", error);
+    const sameDayCache =
+      cachedPanchanga && cachedDate === dateStr ? cachedPanchanga : null;
     return {
-      data: cachedPanchanga ?? unavailable(dateStr),
+      data: sameDayCache ?? unavailable(dateStr),
       source: RetrievalType.FALLBACK,
       confidence: 0,
       retrievedAt: now,

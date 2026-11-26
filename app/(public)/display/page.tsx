@@ -47,6 +47,9 @@ export default function DigitalSignagePage() {
   const [loading, setLoading] = useState(true);
   const [youtubeUrl, setYoutubeUrl] = useState("https://www.youtube.com/@Guru_Raghavendra_Rayaru");
   const [panchanga, setPanchanga] = useState<LivePanchanga | null>(null);
+  const [panchangaStatus, setPanchangaStatus] = useState<
+    "loading" | "ok" | "unavailable"
+  >("loading");
 
   // Update clock every second
   useEffect(() => {
@@ -125,7 +128,11 @@ export default function DigitalSignagePage() {
         const json = await res.json();
 
         // A stale or unavailable record is not today's Panchanga.
-        if (!res.ok || json.status !== "ok" || !json.record) return;
+        if (!res.ok || json.status !== "ok" || !json.record) {
+          setPanchanga(null);
+          setPanchangaStatus("unavailable");
+          return;
+        }
         const record = json.record;
 
         setPanchanga({
@@ -162,8 +169,11 @@ export default function DigitalSignagePage() {
               })
             : undefined,
         });
+        setPanchangaStatus("ok");
       } catch (err) {
         console.error("Error fetching Panchanga:", err);
+        setPanchanga(null);
+        setPanchangaStatus("unavailable");
       }
     }
     fetchPanchanga();
@@ -269,6 +279,13 @@ export default function DigitalSignagePage() {
               <Sun className="h-6 w-6 text-amber-400" />
               <h2 className="text-xl font-semibold text-white">Today&apos;s Panchanga</h2>
             </div>
+            {panchangaStatus !== "ok" && (
+              <p className="mb-3 text-sm text-amber-200" role="status">
+                {panchangaStatus === "loading"
+                  ? "Loading live Panchanga..."
+                  : "Live Panchanga is unavailable."}
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Tithi</p>

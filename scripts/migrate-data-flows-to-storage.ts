@@ -4,9 +4,10 @@
  *
  * Dry run by default. It scans the repository's historical Panchanga files,
  * normalises the two fields the 2026 files predate (`metadata.valid_for` and
- * `metadata.timezone`), validates every record and yearly dataset, regenerates
- * the Aaradhane dataset for each year from those Panchanga records, and reports
- * coverage. Nothing is uploaded unless BOTH `--publish --confirm-production` and
+ * `metadata.timezone`), validates every record and yearly dataset, requires
+ * every calendar date in each year, regenerates the Aaradhane dataset for each
+ * year from those Panchanga records, and reports coverage. Nothing is uploaded
+ * unless BOTH `--publish --confirm-production` and
  * `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true` are supplied.
  *
  * Usage:
@@ -27,14 +28,20 @@ import {
   buildAaradhaneYearDataset,
   buildPanchangaYearDataset,
   validateAaradhaneYearDataset,
+  validateCompletePanchangaYear,
   validatePanchangaRecord,
-  validatePanchangaYearDataset,
   type AaradhaneEvent,
   type PanchangaRecord,
   type PanchangaYearDataset,
 } from "../lib/data-flows/schemas";
 import { panchangaYearPath } from "../lib/data-flows/paths";
-import { IST_TIME_ZONE, isValidDateString, isValidYear, yearOfDate } from "../lib/data-flows/time";
+import {
+  IST_TIME_ZONE,
+  calendarDatesForYear,
+  isValidDateString,
+  isValidYear,
+  yearOfDate,
+} from "../lib/data-flows/time";
 import { generateEventsFromGurus } from "../lib/aaradhane/local-generator";
 import { validateGeneratedEvents } from "../lib/aaradhane/generator";
 import { yearlyPanchangaFromDataset } from "../lib/aaradhane/panchanga";
@@ -72,18 +79,9 @@ interface Report {
     invalidRecords: number;
     aaradhaneYears: number;
     aaradhaneEvents: number;
+    incompleteYears: number;
   };
   published: { panchangaYears: number[]; aaradhaneYears: number[] } | null;
-}
-
-function allDatesInYear(year: number): string[] {
-  const dates: string[] = [];
-  const start = Date.UTC(year, 0, 1);
-  const end = Date.UTC(year, 11, 31);
-  for (let ms = start; ms <= end; ms += 86_400_000) {
-    dates.push(new Date(ms).toISOString().slice(0, 10));
-  }
-  return dates;
 }
 
 /**
@@ -176,10 +174,10 @@ function scanPanchangaYear(root: string, year: number): YearValidation {
   const sorted = [...records.keys()].sort();
   result.firstDate = sorted[0] ?? null;
   result.lastDate = sorted.length > 0 ? sorted[sorted.length - 1] : null;
-  result.missingDays = allDatesInYear(year).filter((date) => !records.has(date));
+  result.missingDays = calendarDatesForYear(year).filter((date) => !records.has(date));
 
   const dataset = buildPanchangaYearDataset(year, [...records.values()], new Date().toISOString());
-  const datasetValidation = validatePanchangaYearDataset(dataset, year);
+  const datasetValidation = validateCompletePanchangaYear(dataset, year);
   if (!datasetValidation.ok || !datasetValidation.value) {
     result.errors.push(`year dataset: ${datasetValidation.errors.join("; ")}`);
   } else {
@@ -304,6 +302,7 @@ async function main(): Promise<void> {
       invalidRecords: panchanga.reduce((sum, entry) => sum + entry.invalid, 0),
       aaradhaneYears: aaradhane.length,
       aaradhaneEvents: aaradhane.reduce((sum, entry) => sum + entry.generated, 0),
+      incompleteYears: panchanga.filter((entry) => entry.missingDays.length > 0).length,
     },
     published: null,
   };
@@ -327,11 +326,13 @@ async function main(): Promise<void> {
   console.log(
     `Totals: years=${report.totals.years} records=${report.totals.records} ` +
       `valid=${report.totals.validRecords} invalid=${report.totals.invalidRecords} ` +
-      `aaradhaneEvents=${report.totals.aaradhaneEvents}`
+      `aaradhaneEvents=${report.totals.aaradhaneEvents} incompleteYears=${report.totals.incompleteYears}`
   );
 
-  const invalid = panchanga.some((entry) => entry.invalid > 0 || entry.dataset === null) ||
-    aaradhane.some((entry) => !entry.valid);
+  const invalid =
+    panchanga.some(
+      (entry) => entry.invalid > 0 || entry.dataset === null || entry.missingDays.length > 0
+    ) || aaradhane.some((entry) => !entry.valid);
 
   if (values.publish) {
     if (!values["confirm-production"]) {

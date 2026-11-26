@@ -40,6 +40,14 @@ Swamy phases.
 - Aaradhane years: 2
 - Aaradhane events: 38
 
+## Coverage enforcement
+
+The validator now requires every calendar date in each year, including leap days.
+This dry run reports `missingDays=0` for both 2026 and 2027. A reproduction with a
+single 2026 file exits non-zero with `incomplete year 2026: 364 of 365 calendar
+dates are missing`; no Storage object is written. The publication path repeats
+the same complete-year check before its first upload.
+
 ## Notes
 
 - After preflight, the 2026 file count (`365`) differs from the earlier

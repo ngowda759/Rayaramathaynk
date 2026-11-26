@@ -40,6 +40,14 @@ Cross-field rules:
 - astronomical timestamps carry an offset (the naive `metadata.generated_at`
   marker is the only timestamp allowed without one)
 - every time value is an ISO 8601 timestamp
+- a historical yearly dataset must contain exactly one record for every calendar
+  date in its year, including 29 February in leap years
+
+`validatePanchangaYearDataset` accepts a partial year because the daily publisher
+builds the current year incrementally. `validateCompletePanchangaYear` adds the
+full-coverage rule and is used by bulk imports and historical publication. A
+missing day is a hard error; no placeholder or inferred astronomical value is
+inserted.
 
 A yearly Panchanga dataset is:
 
@@ -110,6 +118,12 @@ never written before the daily record has been verified.
 4. Writes the new yearly dataset and verifies it.
 5. Updates `current.json` unless `updateCurrent` is false.
 
+`publishPanchangaYearDataset` (the historical import path) additionally defaults
+to `requireCompleteYear: true`, so it rejects a year with any missing date,
+an invalid date, a key/record mismatch, an out-of-year record, or a duplicate
+record before writing the first object. Partial bulk copies require an explicit
+`requireCompleteYear: false` and are not used by the import tool.
+
 All writes are upserts on a fixed object key, and verification compares the
 read-back payload with the intended payload.
 
@@ -128,6 +142,11 @@ Server entry point: `lib/data-flows/server.ts` (imports `server-only`).
 `getCurrentPanchanga` returns `status: "ok" | "stale" | "unavailable"`. A stale
 record is a valid last publication from another IST day; it is never labelled
 current. An unavailable result contains no fabricated astronomical data.
+
+The home widget and digital-signage board render an explicit unavailable state
+instead of yesterday's record or CMS/temple-timing values. Raya AI only reuses a
+cached record when the cache key matches the requested IST date; a failed Storage
+read never promotes a previous day's cache to today.
 
 Public HTTP routes:
 
@@ -152,10 +171,15 @@ auto-merge.
 ### Aaradhane (`aaradhane.yml`)
 
 The existing generation job reads the yearly Panchanga from Storage and previews
-the events. A separate `publish-aaradhane` job is gated on
-`AARADHANE_STORAGE_PUBLISH_ENABLED=true`. Manual dispatch accepts a `year` input,
-so a year can be regenerated without changing the schedule. No step passes
-`--apply`; the database write path is not used.
+the events. A separate `publish-aaradhane` job is gated as follows:
+
+- scheduled run: `AARADHANE_STORAGE_PUBLISH_ENABLED=true`
+- manual run: `AARADHANE_STORAGE_PUBLISH_ENABLED=true` **and** `dry_run: false`
+
+`dry_run` defaults to `true`, so a manual dispatch cannot publish by accident.
+The publish job repeats the manual check in a refusal step before the write
+command as defense in depth. No step passes `--apply`; the database write path is
+not used.
 
 Both workflows run the shared `scripts/lib/guard-approved-supabase-url.mjs` guard
 before reaching the approved project.
@@ -193,8 +217,16 @@ before any upload:
   predate those fields;
 - validates every daily record against its filename;
 - reports duplicate dates, missing days and the first/last date per year;
+- rejects the year when any calendar date is missing, including 29 February in a
+  leap year;
+- rejects invalid dates, day-key/record mismatches and out-of-year records;
 - regenerates each Aaradhane year from the validated Panchanga dataset;
 - validates every generated Aaradhane dataset.
+
+An incomplete year is a validation failure even in dry-run mode: the process exits
+non-zero, the yearly dataset is not used for Aaradhane generation, and the
+publication branch refuses to write. Nothing fills the missing astronomical
+records.
 
 Upload requires all three of `--publish`, `--confirm-production` and
 `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true`. Existing objects with different
@@ -221,20 +253,54 @@ content are refused rather than overwritten.
 The existing `aaradhanes` table and its public API are not part of the generated
 dataset flow and were left untouched.
 
-## 9. Production safety
+## 9. Production cutover sequence
 
 No production object was written while implementing this change. The bucket was
-inspected read-only (`RayaramathaYNK`, public, existing `Data_flows/Panchanga`
-and `Data_flows/Aaradhane` prefixes empty at inspection time).
+inspected read-only (`RayaramathaYNK`, existing `Data_flows/Panchanga` and
+`Data_flows/Aaradhane` prefixes empty at inspection time).
 
-Outstanding owner actions:
+The application no longer reads `data/panchanga/**` or
+`public/data/panchanga/**` at runtime. The static files are retained only as
+repository history/rollback material; they are not a runtime fallback. Because
+`current.json` is absent until the first publication, the API correctly reports
+unavailable during the import window.
 
-1. Provide `SUPABASE_SERVICE_ROLE_KEY` to GitHub Actions if it is not already
-   present, and confirm the key has write access to `RayaramathaYNK`.
-2. Set `PANCHANGA_STORAGE_PUBLISH_ENABLED=true` and
-   `AARADHANE_STORAGE_PUBLISH_ENABLED=true` only after approving cutover.
-3. Approve the historical import, then run the migration tool with
-   `--publish --confirm-production` and
-   `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true`.
-4. Remove the legacy static files only after the Storage-backed readers are
-   verified in production.
+The owner must approve each write step. The safe order is:
+
+1. **Read-only preflight.** Confirm `NEXT_PUBLIC_SUPABASE_URL` points at the
+   project that owns the existing `RayaramathaYNK` bucket, then list
+   `Data_flows/Panchanga` and `Data_flows/Aaradhane` without writing.
+2. **Historical dry run.** Run
+   `npx tsx scripts/migrate-data-flows-to-storage.ts` and require exit code `0`,
+   `missingDays=0` for every year, complete normal/leap-year coverage, and valid
+   Aaradhane datasets. Any missing, invalid, duplicate or out-of-year record
+   stops here.
+3. **Approve historical import.** Set
+   `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true` only after reviewing the dry-run
+   report, then run with `--publish --confirm-production`. This writes yearly
+   Panchanga objects, daily Panchanga objects and yearly Aaradhane objects. It
+   does not advance either `current.json`.
+4. **Verify imported history.** Read back sample daily objects, every yearly
+   object, the imports' `metadata.count`, and the Aaradhane `eventCount`. Confirm
+   the historical Panchanga paths are exactly `Data_flows/Panchanga/...` and the
+   Aaradhane paths exactly `Data_flows/Aaradhane/...`.
+5. **Publish current Panchanga.** Run the daily publisher for the current
+   `Asia/Kolkata` date, or enable `PANCHANGA_STORAGE_PUBLISH_ENABLED=true` and let
+   the scheduled publisher run. Verify `/api/panchanga/current` returns
+   `status: "ok"` with `record.date` equal to today's IST date, then verify
+   `/api/panchanga/daily/<date>`.
+6. **Publish Aaradhane.** Enable `AARADHANE_STORAGE_PUBLISH_ENABLED=true` only
+   after approval, then run a manual dispatch with `dry_run: false` (or the
+   scheduled January run). Verify `/api/aaradhane/datasets/<year>` and
+   `/api/aaradhane/datasets/current`.
+7. **Reader cutover verification.** Load the home widget, digital-signage page
+   and a Raya AI Panchanga question. Each must show live data for the current IST
+   date; force an unavailable Storage read and confirm they show the explicit
+   unavailable state, not yesterday's data.
+8. **Remove static data.** Only after step 7 passes in production. Until then the
+   static files stay in the repository untouched.
+
+Rollback before step 8 is a redeploy of the previous application revision. After
+step 8, rollback requires restoring the static files from git history. No
+production bucket, policy, secret, database record or workflow is changed by this
+document.

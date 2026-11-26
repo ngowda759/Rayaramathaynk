@@ -20,6 +20,7 @@ import {
 } from "./paths";
 import {
   buildPanchangaYearDataset,
+  validateCompletePanchangaYear,
   validatePanchangaRecord,
   validatePanchangaYearDataset,
   type PanchangaRecord,
@@ -193,6 +194,11 @@ export interface PublishPanchangaYearOptions {
   verifyAttempts?: number;
   /** Refuse to replace an existing object with different content. */
   overwriteExisting?: boolean;
+  /**
+   * Require every calendar date in the year. Defaults to true for bulk imports;
+   * set false only for a deliberately partial audit copy.
+   */
+  requireCompleteYear?: boolean;
 }
 
 export interface PublishPanchangaYearResult {
@@ -208,13 +214,18 @@ export interface PublishPanchangaYearResult {
  *
  * Unlike the daily path this never advances `current.json` unless explicitly
  * asked, because importing history must not make an old day the current record.
+ * It also requires every calendar date in the year by default, so an incomplete
+ * history cannot be published.
  */
 export async function publishPanchangaYearDataset(
   storage: ObjectStorage,
   input: unknown,
   options: PublishPanchangaYearOptions = {}
 ): Promise<PublishPanchangaYearResult> {
-  const validation = validatePanchangaYearDataset(input);
+  const validation =
+    options.requireCompleteYear === false
+      ? validatePanchangaYearDataset(input)
+      : validateCompletePanchangaYear(input);
   if (!validation.ok || !validation.value) {
     throw new PanchangaPublishError(
       "yearly",

@@ -12,7 +12,7 @@ on:
         required: false
         type: string
       dry_run:
-        description: "Preview only. Storage publication is controlled separately by the AARADHANE_STORAGE_PUBLISH_ENABLED repository variable."
+        description: "Manual preview only. When true (default), Storage publication is skipped even if AARADHANE_STORAGE_PUBLISH_ENABLED is true."
         required: false
         type: boolean
         default: true
@@ -99,10 +99,12 @@ jobs:
     needs: generate-aaradhane
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Publication is disabled until the owner sets AARADHANE_STORAGE_PUBLISH_ENABLED=true.
-    # The environment binding is a deployment control; it becomes a human approval
-    # gate only once the owner configures required reviewers on the environment.
-    if: ${{ vars.AARADHANE_STORAGE_PUBLISH_ENABLED == 'true' }}
+    # Publication rules:
+    #   - scheduled run: variable must be true
+    #   - manual run: dry_run must be false AND the variable must be true
+    # The step below repeats the manual check before any write, so a future
+    # expression mistake still cannot publish a manual dry run.
+    if: ${{ vars.AARADHANE_STORAGE_PUBLISH_ENABLED == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)) }}
     environment: production
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -112,6 +114,12 @@ jobs:
       TARGET_YEAR: ${{ needs.generate-aaradhane.outputs.target_year }}
 
     steps:
+      - name: Refuse manual dry-run publication
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != false }}
+        run: |
+          echo "::error::Manual dispatch requested dry_run=true. Refusing to publish to Storage."
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
