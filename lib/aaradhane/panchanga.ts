@@ -5,8 +5,7 @@
  * lunar calendar dates (tithi, paksha, lunar month) to Gregorian dates.
  */
 
-import * as fs from "fs";
-import * as path from "path";
+import type { PanchangaYearDataset } from "@/lib/data-flows/schemas";
 
 // Location constants for Panchanga calculation
 export const LOCATION = {
@@ -59,47 +58,29 @@ export interface DailyPanchanga {
 export type YearlyPanchanga = Map<string, DailyPanchanga>;
 
 /**
- * Load Panchanga data for a given year from the data/panchanga directory
+ * Convert a validated yearly Storage dataset into the map the Aaradhane
+ * generator consumes.
+ *
+ * This is the only adapter between the two flows: Aaradhane generation never
+ * reads `data/panchanga/**` or `public/data/panchanga/**`. The yearly dataset is
+ * loaded from Supabase Storage by the caller and passed in here.
  */
-export function loadYearlyPanchanga(year: number): YearlyPanchanga {
-  const panchangaDir = path.join(process.cwd(), "data", "panchanga", String(year));
-  
-  // Check if pre-generated data exists
-  if (!fs.existsSync(panchangaDir)) {
-    throw new Error(
-      `Panchanga data not found for year ${year}. Please run 'python scripts/generate_panchanga.py' first to generate data, or ensure data exists in data/panchanga/${year}/`
-    );
-  }
-  
+export function yearlyPanchangaFromDataset(
+  dataset: PanchangaYearDataset
+): YearlyPanchanga {
   const yearlyData = new Map<string, DailyPanchanga>();
-  
-  // Read all JSON files in the year directory
-  const files = fs.readdirSync(panchangaDir)
-    .filter(f => f.endsWith(".json"))
-    .sort();
-  
-  for (const file of files) {
-    const filePath = path.join(panchangaDir, file);
-    const content = fs.readFileSync(filePath, "utf-8");
-    const data = JSON.parse(content);
-    
-    yearlyData.set(data.date, {
+
+  for (const [date, data] of Object.entries(dataset.days)) {
+    if (!data.masa) continue;
+    yearlyData.set(date, {
       date: data.date,
       tithi: data.tithi,
       masa: data.masa,
       nakshatra: data.nakshatra,
     });
   }
-  
-  return yearlyData;
-}
 
-/**
- * Check if Panchanga data exists for a given year
- */
-export function hasYearlyPanchanga(year: number): boolean {
-  const panchangaDir = path.join(process.cwd(), "data", "panchanga", String(year));
-  return fs.existsSync(panchangaDir);
+  return yearlyData;
 }
 
 /**

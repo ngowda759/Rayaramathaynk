@@ -3,23 +3,24 @@
 ## One-Line Commands
 
 ```bash
-# 1. Generate Panchanga data (first time per year)
-python scripts/panchanga.py --year YEAR --output data/panchanga/YEAR
+# 1. Check the Storage Panchanga source for a year
+npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year YEAR --check
 
 # 2. Preview events
 npm run generate:aaradhane -- --year YEAR --dry-run
 
-# 3. Export to JSON
-npm run export:aaradhane -- --year YEAR
+# 3. Publish the generated dataset to Supabase Storage
+npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year YEAR --publish
 
-# 4. Update Firestore (requires firebase-admin.json)
-npm run generate:aaradhane -- --firestore --year YEAR
+# 4. Export to JSON (legacy local export)
+npm run export:aaradhane -- --year YEAR
 ```
 
 ## Required Setup
 
-- [ ] Python: `pip install panchang`
-- [ ] Firebase: Create `firebase-admin.json` from Firebase Console
+- [ ] `NEXT_PUBLIC_SUPABASE_URL`
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` (write) or a read key for previews
+- [ ] The yearly Panchanga object at `Data_flows/Panchanga/years/YEAR.json`
 
 ## Typical Yearly Workflow
 
@@ -27,37 +28,36 @@ npm run generate:aaradhane -- --firestore --year YEAR
 # January - Generate for upcoming year
 YEAR=$(date -d "+1 year" +%Y)
 
-# Step 1: Generate Panchanga
-python scripts/panchanga.py --year $YEAR --output data/panchanga/$YEAR
+# Step 1: Confirm the Storage Panchanga source
+npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year $YEAR --check
 
-# Step 2: Generate events
-npm run generate:aaradhane -- --year $YEAR --dry-run    # Preview
-npm run generate:aaradhane -- --year $YEAR --firestore  # Update Firestore
+# Step 2: Preview, then publish to Storage
+npm run generate:aaradhane -- --year $YEAR --dry-run
+npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year $YEAR --publish
 
-# OR export and import manually
+# Optional: export a local JSON copy for review
 npm run export:aaradhane -- --year $YEAR
-# Then: Firebase Console > Import JSON
 ```
 
 ## Example Years
 
 ```bash
 # 2026
-python scripts/panchanga.py --year 2026 --output data/panchanga/2026
-npm run generate:aaradhane -- --year 2026
+npm run generate:aaradhane -- --year 2026 --dry-run
 
 # 2027
-python scripts/panchanga.py --year 2027 --output data/panchanga/2027
-npm run generate:aaradhane -- --year 2027
+npm run generate:aaradhane -- --year 2027 --dry-run
 ```
 
 ## Output Locations
 
 | Output | Location |
 |--------|----------|
-| Panchanga | `data/panchanga/{year}/` |
-| Events JSON | `data/exports/aaradhane-events-{year}.json` |
-| Firestore | Collection: `aaradhanes` |
+| Panchanga source | `Data_flows/Panchanga/years/{year}.json` |
+| Aaradhane dataset | `Data_flows/Aaradhane/years/{year}.json` |
+| Current dataset | `Data_flows/Aaradhane/current.json` |
+| Snapshots | `Data_flows/Aaradhane/snapshots/{year}/` |
+| Legacy export | `data/exports/aaradhane-events-{year}.json` |
 
 ## GitHub Actions
 

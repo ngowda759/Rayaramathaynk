@@ -16,24 +16,35 @@ Additionally, it provides auspicious/inauspicious times, sunrise/sunset, and cal
 
 ## File Structure
 
+Panchanga is published to Supabase Storage. The repository still contains the
+historical files during the approved cutover, but no application consumer reads
+them.
+
 ```
+Supabase Storage (bucket: RayaramathaYNK)
+└── Data_flows/Panchanga/
+    ├── current.json              # latest validated record
+    ├── daily/YYYY-MM-DD.json     # historical daily records
+    └── years/YYYY.json           # complete yearly datasets
+
+Repository
 ├── scripts/
-│   ├── panchanga.py              # CLI tool for generating panchanga (manual use)
-│   └── generate_panchanga.py     # GitHub Actions automation script
-├── public/
-│   └── data/
-│       └── panchanga/
-│           └── current.json      # Today's panchanga data
-├── data/
-│   └── panchanga/
-│       └── {year}/
-│           └── {date}.json      # Historical panchanga data
+│   ├── panchanga.py              # CLI generator (supports --date)
+│   ├── generate_panchanga.py     # writes one day to an explicit --output path
+│   ├── publish-panchanga.ts      # validates and publishes to Storage
+│   └── migrate-data-flows-to-storage.ts  # historical validator/importer
 ├── lib/
-│   └── panchanga-cache.ts        # Fallback/purged cache functions
-└── .github/
-    └── workflows/
-        └── panchanga.yml        # GitHub Actions workflow
+│   ├── data-flows/               # typed readers, publishers, schemas, paths
+│   └── panchanga-cache.ts        # explicit unavailable fallback only
+├── app/api/panchanga/            # server-side read-only endpoints
+├── public/data/panchanga/current.json    # legacy copy, retained for rollback
+└── data/panchanga/YYYY/*.json            # historical source for migration
 ```
+
+The legacy `public/data/panchanga/current.json` and `data/panchanga/**` files are
+not read by the home widget, lobby display, AI retrieval or the Aaradhane
+generator. They remain on disk until the owner approves their removal after a
+verified cutover.
 
 ---
 
@@ -52,107 +63,59 @@ Additionally, it provides auspicious/inauspicious times, sunrise/sunset, and cal
 
 ## API Endpoints
 
+All public reads go through a server-side route. The browser never receives a
+Supabase service-role key.
+
 ### 1. Get Today's Panchanga
 
-**URL:** `/data/panchanga/current.json`
+**URL:** `/api/panchanga/current`
 
 **Method:** `GET`
 
-**Description:** Returns today's panchanga data
+**Description:** Returns today's Panchanga from `Data_flows/Panchanga/current.json`,
+classified against the Asia/Kolkata date.
 
 **Response:**
+
 ```json
 {
-  "metadata": {
-    "generator": "Rayara Panchanga Engine",
-    "version": "1.0.0",
-    "generated_at": "2026-07-08T07:44:30.778237",
-    "valid_for": "2026-07-08",
-    "timezone": "Asia/Kolkata"
-  },
-  "date": "2026-07-08",
-  "location": {
-    "latitude": 13.1005,
-    "longitude": 77.5963,
-    "timezone": "Asia/Kolkata"
-  },
-  "weekday": {
-    "english": "Wednesday",
-    "sanskrit": "Budhavara",
-    "number": 3
-  },
-  "sun": {
-    "sunrise": "2026-07-08T06:02:31.976176+05:30",
-    "sunset": "2026-07-08T18:46:46.948940+05:30",
-    "day_duration_hours": 12.7375
-  },
-  "tithi": {
-    "number": 23,
-    "name": "Krishna Ashtami",
-    "paksha": "Krishna",
-    "start": "2026-07-07T13:25:27.025232+05:30",
-    "end": "2026-07-08T12:22:13.665562+05:30"
-  },
-  "nakshatra": {
-    "number": 27,
-    "name": "Revati",
-    "pada": 3,
-    "lord": "Mercury",
-    "start": "2026-07-07T16:24:15.833785+05:30",
-    "end": "2026-07-08T16:00:16.185026+05:30"
-  },
-  "yoga": {
-    "number": 6,
-    "name": "Atiganda",
-    "start": "2026-07-07T14:30:40.794750+05:30",
-    "end": "2026-07-08T12:37:39.153843+05:30"
-  },
-  "karana": {
-    "number": 3,
-    "name": "Kaulava",
-    "start": "2026-07-08T00:58:59.720383+05:30",
-    "end": "2026-07-08T12:22:13.665562+05:30"
-  },
-  "masa": {
-    "number": 3,
-    "name": "Jyeṣṭha",
-    "is_adhik": false,
-    "paksha": "Krishna"
-  },
-  "samvat": {
-    "vikram": 2083,
-    "shaka": 1948,
-    "samvatsara": "Parabhava"
-  },
-  "rahu_kalam": {
-    "name": "Rahu Kalam",
-    "start": "2026-07-08T12:24:39.476157+05:30",
-    "end": "2026-07-08T14:00:11.351162+05:30",
-    "is_auspicious": false
-  },
-  "yama_gandam": {
-    "name": "Yama Gandam",
-    "start": "2026-07-08T15:35:43.226168+05:30",
-    "end": "2026-07-08T17:11:15.101173+05:30",
-    "is_auspicious": false
-  },
-  "gulika_kalam": {
-    "name": "Gulika Kalam",
-    "start": "2026-07-08T10:49:07.601192+05:30",
-    "end": "2026-07-08T12:24:39.476157+05:30",
-    "is_auspicious": false
-  },
-  "abhijit_muhurat": {
-    "name": "Abhijit Muhurat",
-    "start": "2026-07-08T11:59:10.976180+05:30",
-    "end": "2026-07-08T12:50:07.976174+05:30",
-    "is_auspicious": true
-  },
-  "durmuhurta": [],
-  "varjyam": [],
-  "amrita_kalam": []
+  "status": "ok",
+  "source": "supabase-storage",
+  "expectedDate": "2026-11-24",
+  "record": {
+    "metadata": { "valid_for": "2026-11-24", "timezone": "Asia/Kolkata" },
+    "date": "2026-11-24",
+    "tithi": { "name": "Shukla Purnima" }
+  }
 }
 ```
+
+`status` is `ok`, `stale` or `unavailable`:
+
+- `ok` — the record is for the current Asia/Kolkata day.
+- `stale` — the last published record is from another day. It is returned for
+  diagnostics but is not presented as today's Panchanga.
+- `unavailable` — Storage could not be reached or the object is invalid. The
+  endpoint returns HTTP 503.
+
+### 2. Get a historical day
+
+**URL:** `/api/panchanga/daily/YYYY-MM-DD`
+
+Reads `Data_flows/Panchanga/daily/YYYY-MM-DD.json`. The requested date must match
+the record's `date`, otherwise the response is `unavailable`.
+
+### 3. Get a complete year
+
+**URL:** `/api/panchanga/years/YYYY`
+
+Reads `Data_flows/Panchanga/years/YYYY.json`.
+
+### Legacy endpoint
+
+`GET /data/panchanga/current.json` still exists as a static file during the
+cutover, but no application code uses it. The home widget and lobby display use
+`/api/panchanga/current`.
 
 ---
 
@@ -237,28 +200,59 @@ Additionally, it provides auspicious/inauspicious times, sunrise/sunset, and cal
 
 ## Scripts
 
-### 1. panchanga.py (Manual CLI)
-
-For local testing and validation.
+### 1. `panchanga.py` (manual CLI)
 
 ```bash
-# Install dependency
 pip install panchang
 
-# Run (compact output)
+# Today (runner timezone; the workflow always sets TZ=Asia/Kolkata)
 python scripts/panchanga.py
 
-# Run (pretty output)
-python scripts/panchanga.py --pretty
+# A specific day
+python scripts/panchanga.py --date 2026-11-24 --pretty
+
+# A whole year
+python scripts/panchanga.py --year 2026 --pretty
 ```
 
-### 2. generate_panchanga.py (GitHub Actions)
+### 2. `generate_panchanga.py`
 
-Called by the workflow to generate and save the JSON file.
+Generates one day and writes it to an explicit path. The workflow uses this so it
+never modifies a tracked static file.
 
 ```bash
-# This is automatically run by GitHub Actions
-python scripts/generate_panchanga.py
+python scripts/generate_panchanga.py \
+  --date 2026-11-24 \
+  --output artifacts/panchanga/2026-11-24.json
+```
+
+The script refuses to write if the generated `date` and `metadata.valid_for`
+disagree with `--date`.
+
+### 3. `publish-panchanga.ts`
+
+Validates the complete record and publishes it to Storage. `--dry-run` validates
+only.
+
+```bash
+npx tsx scripts/publish-panchanga.ts \
+  --file artifacts/panchanga/2026-11-24.json \
+  --date 2026-11-24 \
+  --dry-run
+```
+
+Without `--dry-run` it needs `NEXT_PUBLIC_SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY`. It writes the daily object first, then the yearly
+dataset, then `current.json`, verifying each upload by reading it back.
+
+### 4. `migrate-data-flows-to-storage.ts`
+
+Validates the historical `data/panchanga/**` files and regenerates the Aaradhane
+datasets locally. It is a dry run unless `--publish --confirm-production` is
+combined with `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true`.
+
+```bash
+npx tsx scripts/migrate-data-flows-to-storage.ts --report /tmp/historical.json
 ```
 
 ---
@@ -267,49 +261,49 @@ python scripts/generate_panchanga.py
 
 **File:** `.github/workflows/panchanga.yml`
 
-**Schedule:**
-- Every day at 02:00 IST (20:30 UTC previous day)
-- Every day at 11:00 IST (05:30 UTC)
-- Every day at 14:30 IST (09:00 UTC)
+**Schedule (unchanged):**
+- `30 23 * * *`
+- `30 21 * * *`
+- `30 6 * * *`
+- `30 8 * * *`
 
 **Manual Trigger:** Available via GitHub Actions UI
 
 **Process:**
-1. Checkout code
-2. Setup Python 3.11
-3. Install `panchang` library
-4. Run `generate_panchanga.py`
-5. Commit and push `current.json`
+1. Checkout scripts.
+2. Install Python and Node dependencies.
+3. Compute the target date with `TZ=Asia/Kolkata date +%F`.
+4. Generate to `artifacts/panchanga/YYYY-MM-DD.json`.
+5. Validate the record without writing.
+6. If `PANCHANGA_STORAGE_PUBLISH_ENABLED` is `true`, run the approved-URL guard
+   and publish to Storage.
+7. Upload the generated JSON as a workflow artifact.
+
+**No Pull Request is created and no auto-merge is requested.** Publication stays
+disabled until the owner sets the repository variable
+`PANCHANGA_STORAGE_PUBLISH_ENABLED=true` and provides
+`SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
 
 ## Usage in Frontend
 
-### React Component
+The home widget and lobby display call the server endpoint. They only use a
+record whose status is `ok`; a `stale` or `unavailable` response leaves the CMS
+fallback values in place.
 
 ```tsx
-import { useEffect, useState } from 'react';
+const res = await fetch("/api/panchanga/current", { cache: "no-store" });
+const json = await res.json();
+if (!res.ok || json.status !== "ok" || !json.record) return;
 
-export default function PanchangaWidget() {
-  const [data, setData] = useState(null);
-  
-  useEffect(() => {
-    fetch('/data/panchanga/current.json')
-      .then(res => res.json())
-      .then(setData);
-  }, []);
-  
-  if (!data) return <div>Loading...</div>;
-  
-  return (
-    <div>
-      <h2>{data.tithi.name}</h2>
-      <p>Nakshatra: {data.nakshatra.name}</p>
-      <p>Sunrise: {new Date(data.sun.sunrise).toLocaleTimeString()}</p>
-    </div>
-  );
-}
+const record = json.record;
+// record.tithi.name, record.nakshatra.name, record.sun.sunrise, ...
 ```
+
+The AI retrieval path (`lib/ai/retrieval/panchanga.ts`) uses the same server
+reader and derives "today" from `getIstDateString()`, never from
+`toISOString().slice(0, 10)`.
 
 ---
 

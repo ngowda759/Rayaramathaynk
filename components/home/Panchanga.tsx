@@ -66,48 +66,48 @@ export default function Panchanga() {
   React.useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(
-          "/data/panchanga/current.json",
-          {
-            cache: "no-store",
-          }
-        );
-
+        const res = await fetch("/api/panchanga/current", {
+          cache: "no-store",
+        });
         const json = await res.json();
 
-        if (!json || json.error) return;
+        // Only an `ok` record is today's Panchanga. A `stale` record belongs to
+        // another Asia/Kolkata day and must not be presented as current; the
+        // component keeps the CMS fallback instead.
+        if (!res.ok || json.status !== "ok" || !json.record) return;
+        const record = json.record;
 
         setLive({
-          tithi: json.tithi?.name,
-          nakshatra: json.nakshatra?.name,
-          yoga: json.yoga?.name,
-          karana: json.karana?.name,
-          rahuKalam: json.rahu_kalam?.start
-            ? new Date(json.rahu_kalam.start).toLocaleTimeString("en-IN", {
+          tithi: record.tithi?.name,
+          nakshatra: record.nakshatra?.name,
+          yoga: record.yoga?.name,
+          karana: record.karana?.name,
+          rahuKalam: record.rahu_kalam?.start
+            ? new Date(record.rahu_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
-          gulikaKalam: json.gulika_kalam?.start
-            ? new Date(json.gulika_kalam.start).toLocaleTimeString("en-IN", {
+          gulikaKalam: record.gulika_kalam?.start
+            ? new Date(record.gulika_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
-          masa: json.masa?.name,
+          masa: record.masa?.name,
 
-          sunrise: json.sun?.sunrise
-            ? new Date(json.sun.sunrise).toLocaleTimeString("en-IN", {
+          sunrise: record.sun?.sunrise
+            ? new Date(record.sun.sunrise).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
 
-          sunset: json.sun?.sunset
-            ? new Date(json.sun.sunset).toLocaleTimeString("en-IN", {
+          sunset: record.sun?.sunset
+            ? new Date(record.sun.sunset).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",

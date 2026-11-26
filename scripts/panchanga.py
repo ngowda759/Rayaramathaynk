@@ -6,6 +6,7 @@ Panchanga CLI using panchang library
 import argparse
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -127,6 +128,12 @@ def main():
         default=None,
         help="Output directory for year data"
     )
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Generate for a specific YYYY-MM-DD (default: today)"
+    )
 
     args = parser.parse_args()
 
@@ -170,8 +177,15 @@ def main():
         print(f"Done! Generated {days_in_year} files in {output_dir}")
         
     else:
-        # Generate for today only
-        target_date = datetime.now().date()
+        # Generate for the requested date, or today.
+        if args.date:
+            try:
+                target_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+            except ValueError:
+                print(f"Invalid --date value: {args.date!r}; expected YYYY-MM-DD", file=sys.stderr)
+                sys.exit(2)
+        else:
+            target_date = datetime.now().date()
         result = compute_panchanga(target_date, location)
 
         if args.pretty:
