@@ -2,51 +2,113 @@ name: Generate Daily Panchanga
 
 on:
   schedule:
-    # Run every 2 hours at minute 30 (e.g., 00:30, 02:30, 04:30, etc.)
+    # Existing daily generation times.
     - cron: "30 23 * * *"
     - cron: "30 21 * * *"
     - cron: "30 6 * * *"
     - cron: "30 8 * * *"
+
+  # Allows manual execution from GitHub Actions.
   workflow_dispatch:
 
+# Minimum permissions required to create/update the automation branch
+# and create the Pull Request.
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   generate:
+    name: Generate Panchanga
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # Checkout only the files required by the generator.
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           sparse-checkout: |
             scripts/
             public/data/
           sparse-checkout-cone-mode: false
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
-        run: pip install panchang
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install panchang
 
       - name: Generate Panchanga
-        run: python scripts/generate_panchanga.py
-
-      - name: Commit and push changes
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config push.default current
+          python scripts/generate_panchanga.py
 
-          git add public/data/panchanga/current.json
+      # Never push directly to main.
+      #
+      # This creates/updates:
+      #   automation/daily-panchanga
+      #
+      # and opens/updates a PR against main.
+      - name: Create or update Panchanga PR
+        id: cpr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-          if git diff --cached --quiet; then
-            echo "No changes needed - panchanga data is up to date"
-          else
-            git commit -m "chore: update daily panchanga"
-            git push
-            echo "✓ Panchanga updated and pushed to GitHub"
-            echo "✓ Vercel will automatically deploy the changes"
-          fi
+          commit-message: "chore: update daily panchanga"
+
+          branch: automation/daily-panchanga
+          delete-branch: true
+
+          title: "chore: update daily panchanga"
+
+          body: |
+            ## Daily Panchanga update
+
+            This Pull Request was generated automatically by the scheduled Panchanga workflow.
+
+            ### Changes
+
+            - Updates the generated Panchanga data.
+            - Does not push directly to `main`.
+            - Uses the repository's normal Pull Request and branch-protection flow.
+            - Required status checks must pass before merge.
+
+            ### Safety
+
+            This PR is intentionally subject to the same required checks and
+            branch protection rules as any other change to `main`.
+
+            The PR is eligible for auto-merge once all repository requirements
+            are satisfied.
+
+      # Ask GitHub to merge only after all required branch-protection
+      # requirements are satisfied.
+      #
+      # This does NOT bypass required checks.
+      - name: Enable auto-merge
+        if: ${{ steps.cpr.outputs.pull-request-number != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+        run: |
+          gh pr merge "$PR_NUMBER" \
+            --auto \
+            --squash \
+            --delete-branch
+
+      - name: Report Panchanga PR
+        if: ${{ steps.cpr.outputs.pull-request-number != '' }}
+        run: |
+          echo "Panchanga PR: ${{ steps.cpr.outputs.pull-request-url }}"
+          echo "PR number: ${{ steps.cpr.outputs.pull-request-number }}"
+          echo "Operation: ${{ steps.cpr.outputs.pull-request-operation }}"
+
+      - name: No changes detected
+        if: ${{ steps.cpr.outputs.pull-request-number == '' }}
+        run: |
+          echo "No Panchanga changes detected."
+          echo "No Pull Request was created."
