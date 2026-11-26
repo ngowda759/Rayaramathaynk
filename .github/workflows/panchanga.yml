@@ -1,3 +1,4 @@
+
 name: Generate Daily Panchanga
 
 on:
@@ -8,7 +9,7 @@ on:
     - cron: "30 6 * * *"
     - cron: "30 8 * * *"
 
-  # Allows manual execution from GitHub Actions.
+  # Allow manual execution from GitHub Actions.
   workflow_dispatch:
 
 # Minimum permissions required to create/update the automation branch
@@ -23,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout only the files required by the generator.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -46,49 +46,36 @@ jobs:
         run: |
           python scripts/generate_panchanga.py
 
+      # Create or update a dedicated branch and PR.
       # Never push directly to main.
-      #
-      # This creates/updates:
-      #   automation/daily-panchanga
-      #
-      # and opens/updates a PR against main.
       - name: Create or update Panchanga PR
         id: cpr
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
           commit-message: "chore: update daily panchanga"
-
           branch: automation/daily-panchanga
           delete-branch: true
-
           title: "chore: update daily panchanga"
-
           body: |
             ## Daily Panchanga update
 
             This Pull Request was generated automatically by the scheduled Panchanga workflow.
 
             ### Changes
-
             - Updates the generated Panchanga data.
-            - Does not push directly to `main`.
+            - Does not push directly to main.
             - Uses the repository's normal Pull Request and branch-protection flow.
             - Required status checks must pass before merge.
 
             ### Safety
+            This PR is subject to the same required checks and
+            branch protection rules as any other change to main.
 
-            This PR is intentionally subject to the same required checks and
-            branch protection rules as any other change to `main`.
+            The PR is eligible for auto-merge once all repository
+            requirements are satisfied.
 
-            The PR is eligible for auto-merge once all repository requirements
-            are satisfied.
-
-      # Ask GitHub to merge only after all required branch-protection
-      # requirements are satisfied.
-      #
-      # This does NOT bypass required checks.
+      # Request auto-merge without bypassing branch protection.
       - name: Enable auto-merge
         if: ${{ steps.cpr.outputs.pull-request-number != '' }}
         env:
@@ -100,12 +87,18 @@ jobs:
             --squash \
             --delete-branch
 
+      # Pass GitHub outputs through environment variables.
+      # Do not interpolate GitHub expressions directly in shell commands.
       - name: Report Panchanga PR
         if: ${{ steps.cpr.outputs.pull-request-number != '' }}
+        env:
+          PR_URL: ${{ steps.cpr.outputs.pull-request-url }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+          PR_OPERATION: ${{ steps.cpr.outputs.pull-request-operation }}
         run: |
-          echo "Panchanga PR: ${{ steps.cpr.outputs.pull-request-url }}"
-          echo "PR number: ${{ steps.cpr.outputs.pull-request-number }}"
-          echo "Operation: ${{ steps.cpr.outputs.pull-request-operation }}"
+          echo "Panchanga PR: $PR_URL"
+          echo "PR number: $PR_NUMBER"
+          echo "Operation: $PR_OPERATION"
 
       - name: No changes detected
         if: ${{ steps.cpr.outputs.pull-request-number == '' }}
