@@ -55,6 +55,11 @@ export interface PublishAaradhaneResult {
   unchanged: boolean;
 }
 
+const VERIFY_READ_DELAYS_MS = [0, 250, 500, 1000, 2000, 4000];
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 async function writeAndVerify(
   storage: ObjectStorage,
   path: string,
@@ -63,16 +68,27 @@ async function writeAndVerify(
   attempts: number
 ): Promise<void> {
   const body = serializeJson(value);
+  const maxUploads = Math.max(1, attempts);
   let lastError = "unknown verification failure";
+  let uploaded = false;
 
-  for (let attempt = 1; attempt <= Math.max(1, attempts); attempt++) {
+  for (let attempt = 1; attempt <= maxUploads; attempt++) {
     const put = await storage.putText(path, body);
-    if (!put.ok) {
-      lastError = put.error ?? `upload failed with HTTP ${put.status}`;
-      continue;
+    if (put.ok) {
+      uploaded = true;
+      break;
     }
+    lastError = put.error ?? `upload failed with HTTP ${put.status}`;
+    if (attempt < maxUploads) await sleep(attempt * 250);
+  }
 
-    const stored = await storage.getText(path);
+  if (!uploaded) throw new AaradhanePublishError(step, lastError);
+
+  // A read issued straight after an upsert can still return the previous version,
+  // so poll the object instead of re-uploading: another write races the same way.
+  for (const delay of VERIFY_READ_DELAYS_MS) {
+    if (delay > 0) await sleep(delay);
+    const stored = await storage.getText(path, { fresh: true });
     if (!stored.ok || stored.text === null) {
       lastError = stored.error ?? "uploaded object could not be read back";
       continue;

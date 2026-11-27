@@ -9,6 +9,7 @@ import {
   buildPanchangaYearDataset,
 } from "@/lib/data-flows/schemas";
 import type {
+  StorageGetOptions,
   StorageGetResult,
   StorageListEntry,
   StorageListResult,
@@ -164,14 +165,36 @@ export class MemoryStorage implements ObjectStorage {
   readonly objects = new Map<string, string>();
   readonly writes: string[] = [];
   readonly putFailures = new Set<string>();
+  readonly freshReads: string[] = [];
   readonly readFailures = new Set<string>();
   readonly corruptReads = new Map<string, string>();
+  private readonly putsByPath = new Map<string, number>();
+  private readonly staleReads = new Map<
+    string,
+    { text: string; count: number; afterPut: number }
+  >();
+
+  /**
+   * Simulates storage returning the previous version for the next `count` reads
+   * that follow an upload, which is what production did right after replacing
+   * the 946 KB yearly object.
+   */
+  simulateStaleReads(path: string, text: string, count = 2): void {
+    this.staleReads.set(path, { text, count, afterPut: this.putsByPath.get(path) ?? 0 });
+  }
 
   seed(path: string, value: unknown): void {
     this.objects.set(path, `${JSON.stringify(value, null, 2)}\n`);
   }
 
-  async getText(path: string): Promise<StorageGetResult> {
+  async getText(path: string, options: StorageGetOptions = {}): Promise<StorageGetResult> {
+    if (options.fresh) this.freshReads.push(path);
+
+    const stale = this.staleReads.get(path);
+    if (stale && stale.count > 0 && (this.putsByPath.get(path) ?? 0) > stale.afterPut) {
+      stale.count -= 1;
+      return { ok: true, text: stale.text, status: 200 };
+    }
     if (this.readFailures.has(path)) {
       return { ok: false, text: null, status: 500, error: "forced read failure" };
     }
@@ -187,6 +210,7 @@ export class MemoryStorage implements ObjectStorage {
 
   async putText(path: string, text: string): Promise<StoragePutResult> {
     this.writes.push(path);
+    this.putsByPath.set(path, (this.putsByPath.get(path) ?? 0) + 1);
     if (this.putFailures.has(path)) {
       return { ok: false, status: 500, error: "forced upload failure" };
     }

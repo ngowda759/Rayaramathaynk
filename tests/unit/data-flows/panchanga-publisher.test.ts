@@ -95,7 +95,7 @@ describe("Panchanga publisher", () => {
         verifyAttempts: 1,
       })
     ).rejects.toMatchObject({ step: "current" });
-  });
+  }, 20000);
 
   it("is idempotent on a repeated publish", async () => {
     const storage = new MemoryStorage();
@@ -183,6 +183,26 @@ describe("Panchanga historical publication", () => {
       publishPanchangaYearDataset(storage, dataset, { requireCompleteYear: false })
     ).rejects.toMatchObject({ step: "yearly" });
     expect(storage.writes).toEqual([]);
+  });
+
+  it("re-reads instead of failing when the post-write read returns the previous version", async () => {
+    // Production run 45974564976: the 946 KB yearly object was written correctly,
+    // but the read issued straight after the upload still returned the previous
+    // version, so the publish aborted and current.json was never written.
+    const storage = new MemoryStorage();
+    await publishPanchangaRecord(storage, panchangaRecord(DAY1), { expectedDate: DAY1 });
+    storage.writes.length = 0;
+    storage.simulateStaleReads(panchangaYearPath(2026), storage.objects.get(panchangaYearPath(2026))!);
+
+    const result = await publishPanchangaRecord(storage, panchangaRecord(DAY2), {
+      expectedDate: DAY2,
+    });
+
+    expect(result.yearlyDayCount).toBe(2);
+    expect(storage.freshReads).toContain(panchangaYearPath(2026));
+    const yearly = JSON.parse(storage.objects.get(panchangaYearPath(2026))!);
+    expect(Object.keys(yearly.days).sort()).toEqual([DAY1, DAY2]);
+    expect(storage.objects.has(panchangaCurrentPath())).toBe(true);
   });
 
   it("skips a yearly object that differs only in metadata.generated_at", async () => {
