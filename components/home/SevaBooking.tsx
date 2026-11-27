@@ -10,6 +10,7 @@ import { sevaService } from "@/services/seva.service";
 import { sevaBookingService } from "@/services/sevaBooking.service";
 import { Seva } from "@/types/seva";
 import { useFinanceSettings } from "@/hooks/useFinanceSettings";
+import { configuredUpiId } from "@/lib/receipt/upi";
 
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
@@ -19,6 +20,7 @@ import SevaReceipt from "./SevaReceipt";
 export default function SevaBooking() {
   const { user, profile, loading } = useAuth();
   const { upiEnabled, upiDetails } = useFinanceSettings();
+  const upiId = configuredUpiId(upiDetails?.id);
   const [poojas, setPoojas] = useState<Seva[]>([]);
   const [selectedSeva, setSelectedSeva] = useState<Seva | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -111,8 +113,11 @@ export default function SevaBooking() {
 
   function openUPIApp() {
     if (!selectedSeva) return;
-    const upiId = upiDetails?.id || "9886364462@ptsbi";
-    
+    if (!upiId) {
+      toast.error("UPI is not configured yet. Please contact the temple.");
+      return;
+    }
+
     // Don't try to open UPI URL in browser - it causes blank page
     // Instead, copy UPI ID to clipboard so user can paste in their UPI app
     navigator.clipboard.writeText(upiId);
@@ -599,17 +604,17 @@ export default function SevaBooking() {
                     </Button>
                   </div>
                 </div>
-              ) : !paymentInitiated && upiEnabled && upiDetails?.id ? (
+              ) : !paymentInitiated && upiEnabled && upiId ? (
                 <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
                   <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
                   
                   <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
                     <div>
-                      <p className="font-semibold text-stone-900">{upiDetails.id}</p>
+                      <p className="font-semibold text-stone-900">{upiId}</p>
                       <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
                     </div>
                     <button
-                      onClick={() => copyToClipboard(upiDetails.id)}
+                      onClick={() => copyToClipboard(upiId)}
                       className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
                     >
                       {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
@@ -626,6 +631,12 @@ export default function SevaBooking() {
 
                   <p className="text-center text-sm text-stone-500 mt-3">
                     Tap the button to copy UPI ID, then open your UPI app and paste
+                  </p>
+                </div>
+              ) : !paymentInitiated && upiEnabled ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+                  <p className="text-amber-800">
+                    UPI payments are not configured yet. Please contact the temple for payment instructions.
                   </p>
                 </div>
               ) : paymentInitiated ? (

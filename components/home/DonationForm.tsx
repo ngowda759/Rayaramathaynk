@@ -11,9 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { donationService } from "@/services/donation.service";
 import { paymentModeOptions, PaymentMode } from "@/types/donation";
 import { useFinanceSettings } from "@/hooks/useFinanceSettings";
+import { buildUpiPaymentUrl, configuredUpiId } from "@/lib/receipt/upi";
 
 export default function DonationForm() {
   const { settings, enabled, specialSevas, upiEnabled, bankTransferEnabled, upiDetails, bankDetails } = useFinanceSettings();
+  const upiId = configuredUpiId(upiDetails?.id);
   
   const [donorName, setDonorName] = useState("");
   const [email, setEmail] = useState("");
@@ -63,15 +65,22 @@ export default function DonationForm() {
 
   function openUPIApp() {
     const amountNum = Number(amount);
-    const upiId = upiDetails?.id || "9886364462@ptsbi";
+    if (!upiId) {
+      toast.error("UPI is not configured yet. Please contact the temple.");
+      return;
+    }
     const note = `Donation:${purpose || 'General'}`;
-    const upiUrl = `upi://pay?pa=${upiId}&pn=Sri%20Raghavendra%20Swamy%20Matha&am=${amountNum}&cu=INR&tn=${encodeURIComponent(note)}`;
-    
+    const upiUrl = buildUpiPaymentUrl({
+      upiId,
+      amount: amountNum,
+      note,
+    });
+
     const opened = window.open(upiUrl, '_blank');
     if (!opened || opened.closed) {
       window.location.href = upiUrl;
     }
-    
+
     setPaymentInitiated(true);
   }
 
@@ -187,18 +196,18 @@ export default function DonationForm() {
           <h3 className="text-xl font-semibold text-stone-900 mb-4">Make Payment</h3>
           
           <div className="grid gap-6 md:grid-cols-2">
-            {upiEnabled && upiDetails.id && (
+            {upiEnabled && upiId && (
               <div className="rounded-xl border border-green-200 bg-white p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-green-700">UPI Payment</span>
                   <button
-                    onClick={() => copyToClipboard(upiDetails.id, "upi")}
+                    onClick={() => copyToClipboard(upiId, "upi")}
                     className="text-green-600 hover:text-green-800"
                   >
                     {copiedUpi ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </button>
                 </div>
-                <p className="text-lg font-semibold text-stone-900">{upiDetails.id}</p>
+                <p className="text-lg font-semibold text-stone-900">{upiId}</p>
                 <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
                 <p className="mt-2 text-xs text-stone-400">Pay using any UPI app</p>
               </div>
@@ -393,17 +402,17 @@ export default function DonationForm() {
                   </div>
                 </div>
 
-                {!paymentInitiated && upiEnabled && upiDetails?.id && (
+                {!paymentInitiated && upiEnabled && upiId && (
                   <div className="rounded-2xl border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50 p-6">
                     <h3 className="text-lg font-bold text-green-800 mb-4">Pay via UPI</h3>
                     
                     <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 mb-4">
                       <div>
-                        <p className="font-semibold text-stone-900">{upiDetails.id}</p>
+                        <p className="font-semibold text-stone-900">{upiId}</p>
                         <p className="text-sm text-stone-500">{upiDetails.displayName}</p>
                       </div>
                       <button
-                        onClick={() => copyToClipboard(upiDetails.id, "upi")}
+                        onClick={() => copyToClipboard(upiId, "upi")}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
                       >
                         {copiedUpi ? <Check size={20} /> : <Copy size={20} />}
@@ -440,6 +449,14 @@ export default function DonationForm() {
                     </div>
                     <p className="text-xs text-stone-500">
                       The temple will verify your payment and send a confirmation.
+                    </p>
+                  </div>
+                )}
+
+                {!paymentInitiated && upiEnabled && !upiId && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-center">
+                    <p className="text-amber-800">
+                      UPI payments are not configured yet. Please contact the temple for payment instructions.
                     </p>
                   </div>
                 )}

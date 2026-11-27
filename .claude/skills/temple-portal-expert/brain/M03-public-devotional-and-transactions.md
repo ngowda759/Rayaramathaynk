@@ -325,8 +325,9 @@ FavoritesPage (client) app/(public)/favorites/page.tsx
    `sevaBookingService.createBooking()` (`services/sevaBooking.service.ts:34`), which writes a
    Firestore `sevaBookings` doc with `status:"pending"`, `paymentStatus:"pending"`.
    The `SVA-...` reference is **never persisted**.
-5. A payment dialog shows the UPI id from `useFinanceSettings()`, falling back to the
-   hardcoded `"9886364462@ptsbi"` (`SevaBooking.tsx:114`). `openUPIApp()` only copies the id
+5. A payment dialog shows the UPI id from `useFinanceSettings()` (`configuredUpiId(upiDetails?.id)`).
+   There is no built-in fallback VPA: with no configured id the dialog shows a "UPI payments are
+   not configured" notice and `openUPIApp()` refuses to continue. `openUPIApp()` only copies the id
    to the clipboard; after a 5 s countdown a "payment reference" input appears.
 6. `handleSavePaymentReference()` (`SevaBooking.tsx:181`) calls
    `sevaBookingService.updatePayment()` (`SevaBooking.tsx:190` -> `sevaBooking.service.ts:81`) which sets
@@ -562,9 +563,11 @@ Locally declared duplicates: `SevaBookingRecord` (`receipts/page.tsx:14`), `Quot
 4. Wire `handleExplain` (`:126`) to an AI route owned by M08, or remove the button.
 
 ### Change the UPI destination or add a real gateway
-1. Finance settings live in M07 (`useFinanceSettings`, `settings.service.ts`).
-2. Remove the hardcoded fallback `"9886364462@ptsbi"` from **both**
-   `components/home/SevaBooking.tsx:114` and `components/home/DonationForm.tsx:66`.
+1. Finance settings live in M07 (`useFinanceSettings`, `settings.service.ts`). The UPI id is set in
+   Admin -> Settings -> Finance and is the only source of the payment VPA.
+2. Both payment paths (`components/home/SevaBooking.tsx`, `components/home/DonationForm.tsx`) read
+   that configured id through `configuredUpiId()` in `lib/receipt/upi.ts` and fail closed when it is
+   blank; `buildUpiPaymentUrl()` throws `UpiNotConfiguredError` rather than falling back.
 3. For a real gateway: add a server route that creates an order, and move
    `sevaBookingService.updatePayment` (`services/sevaBooking.service.ts:81`) behind a
    server-side webhook handler. Client code must never set `paymentStatus:"completed"`.
@@ -613,7 +616,7 @@ nothing ever reaches it (M03-F35).
 | M03-F01 | HIGH | Payment status is set by the browser. `updatePayment` writes `paymentStatus:"completed"` + `status:"confirmed"` from client code on a user-typed reference; nothing verifies the transaction. Anyone can mark a booking paid. | `services/sevaBooking.service.ts:81-84` (writes `paymentDate` and `status:"confirmed"` at `:83`), called from `components/home/SevaBooking.tsx:190` inside `handleSavePaymentReference` (`:181`) | Move payment confirmation to a server route/webhook; make the client field write-once and unverified until an admin or gateway confirms | STILL OPEN |
 | M03-F02 | HIGH | `/api/public/receipts` is unauthenticated and substring-matches phone/email across the newest 1000 bookings, returning up to 20 records with names, emails and phone numbers. A two-digit query leaks strangers' PII. | `app/api/public/receipts/route.ts:6,28,39-44`; called from `app/(public)/receipts/page.tsx:53` | Require an exact match plus a second factor (booking id + phone), or OTP; never return other devotees' contact details | STILL OPEN |
 | M03-F03 | HIGH | `POST /api/temple-areas` and `PUT`/`DELETE /api/temple-areas/[id]` have no auth check and run through the Supabase **service-role** client, so any visitor can create, edit or delete temple areas. | `app/api/temple-areas/route.ts:14-31`, `app/api/temple-areas/[id]/route.ts:23,39`; admin client at `services/temple-areas.supabase.service.ts:98,129,159` | Delete the write verbs from the public route (the admin equivalents already exist at `/api/admin/temple-areas`) or add the admin session guard | STILL OPEN |
-| M03-F04 | HIGH | Hardcoded UPI id `"9886364462@ptsbi"` as a fallback payee in two payment paths. If finance settings fail to load, money is directed at a literal in the source. | `components/home/SevaBooking.tsx:114`, `components/home/DonationForm.tsx:66` | Fail closed - disable the pay button when `upiDetails.id` is missing | STILL OPEN |
+| M03-F04 | HIGH | ~~Hardcoded UPI id as a fallback payee in two payment paths. If finance settings fail to load, money is directed at a literal in the source.~~ | `components/home/SevaBooking.tsx`, `components/home/DonationForm.tsx`, `lib/receipt/upi.ts` | Fail closed - disable the pay button when `upiDetails.id` is missing | **RESOLVED (2026-11-27, `fix/replace-obsolete-contact-number`)** - `DEFAULT_UPI_ID` deleted; both paths use `configuredUpiId()` and `buildUpiPaymentUrl()` throws when unset |
 | M03-F05 | HIGH | `/quotes` ignores the entire quote engine and renders 5 hardcoded quotes; the "AI Explanation" button is a 1500 ms `setTimeout` that produces nothing. Docs describe this page's data as Firestore-driven. | `app/(public)/quotes/page.tsx:29,76,126-131`; engine at `services/quote.service.ts:494,670`; `docs/QUOTE-ENGINE.md:11` | Fetch from the existing `/api/quotes*` routes; remove or implement the AI button | STILL OPEN |
 | M03-F06 | MEDIUM | `/stotras` likewise renders 5 hardcoded stotras with a fake 500 ms loading state; there is no stotra service or collection at all. `audioUrl`/`pdfUrl` are declared but never populated, so Play/PDF never render. | `app/(public)/stotras/page.tsx:40,106,113,363,372` | Back it with a Firestore collection + admin CRUD, or state plainly that it is seed content | STILL OPEN |
 | M03-F07 | MEDIUM | Article HTML is injected without escaping. `formatContent` builds raw HTML from Firestore article content and it goes into `dangerouslySetInnerHTML`. Stored XSS if an admin account or the collection is compromised. | `components/knowledge/KnowledgeArticleClient.tsx:267,339-365` | Sanitize (DOMPurify) or render markdown through a safe renderer | STILL OPEN |

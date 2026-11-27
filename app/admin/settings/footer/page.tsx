@@ -181,7 +181,7 @@ export default function FooterSettingsPage() {
               type="text"
               value={data.phone}
               onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="+91 9886364462"
+              placeholder="+91 81234 70770"
             />
           </div>
           <div>
