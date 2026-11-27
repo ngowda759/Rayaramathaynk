@@ -59,7 +59,7 @@ in the document **before** this pass.
 | 21 | R-236 | MEDIUM | E | `app/api/admin/receipts/route.ts:58-61` | **HELD** — `.limit(pageSize).offset((page-1)*pageSize)` |
 | 22 | R-321 | MEDIUM | H | `tests/ai-uat/ai-uat.spec.ts:6` | **HELD, severity refuted** — the import at `:6` is `{ test, expect, Page }`; `describe.describe(` appears exactly 15 times. Source M09-F06 is HIGH. **Re-graded HIGH** |
 | 23 | R-045 | LOW | A | `REPORT.md:1-12` | **HELD, severity refuted** — a checked-in record of deliberately removing `verifyAdminUser` from three receipt routes and `AdminAuthGuard` from the layout. Source M15-F08 is HIGH. **Re-graded MEDIUM** (see §3 exceptions) |
-| 24 | R-140 | LOW | B | `lib/receipt/upi.ts:1` | **HELD, severity refuted** — `export const DEFAULT_UPI_ID = "9886364462@ptsbi"` is the payment fallback in two money paths. Source M03-F04 is HIGH. **Re-graded HIGH** |
+| 24 | R-140 | LOW | B | `lib/receipt/upi.ts:1` | **HELD, severity refuted** — `export const DEFAULT_UPI_ID = "988•••••62@ptsbi"` (digits redacted) was the payment fallback in two money paths. Source M03-F04 is HIGH. **Re-graded HIGH**. **RESOLVED 2026-11-27** (`fix/replace-obsolete-contact-number`): `DEFAULT_UPI_ID` deleted, both paths fail closed. |
 | 25 | R-273 | LOW | D | `app/(public)/timeline/page.tsx:192`; `components/ui/VideoUploader.tsx:56-58`; `app/(public)/quotes/page.tsx:126-131` | **HELD at LOW** — `setTimeout(…,500)`, a `setInterval` progress bar capped at 90%, a 1,500 ms no-op. But its HIGH source M03-F05 lost its real substance in this split — see §3 |
 
 **Totals: 25 sampled, 25 held on the facts, 0 refuted on the facts, 5 refuted on severity.**

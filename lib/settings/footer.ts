@@ -33,7 +33,7 @@ export const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
   templeSubtitle: "Yelahanka New Town",
   logoUrl: "/images/logos/ynk_matha_logo.png",
   address: "Sri Rayara Matha, Yelahanka New Town, Bengaluru",
-  phone: "+91 9886364462",
+  phone: "+91 81234 70770",
   phone2: "",
   email: "ngowda759@gmail.com",
   mapUrl: "https://maps.app.goo.gl/JKqBSh7AdNAC6E9d8",
