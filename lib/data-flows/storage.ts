@@ -52,12 +52,24 @@ export type FetchLike = (
   json: () => Promise<unknown>;
 }>;
 
+export interface StorageGetOptions {
+  /**
+   * Ask for the object as it is now, not as any cache remembers it: unique query
+   * parameter plus no-cache request headers. Verification reads run moments after
+   * a write, where a cached or not-yet-propagated previous version would make a
+   * successful upload look like a mismatch.
+   */
+  fresh?: boolean;
+}
+
 export interface ObjectStorage {
   readonly bucket: string;
-  getText(path: string): Promise<StorageGetResult>;
+  getText(path: string, options?: StorageGetOptions): Promise<StorageGetResult>;
   putText(path: string, text: string): Promise<StoragePutResult>;
   list(prefix: string, limit?: number): Promise<StorageListResult>;
 }
+
+let freshReadSequence = 0;
 
 function encodeObjectPath(path: string): string {
   return path
@@ -113,12 +125,23 @@ export function createSupabaseStorage(
   return {
     bucket: config.bucket,
 
-    async getText(path: string): Promise<StorageGetResult> {
+    async getText(path: string, options: StorageGetOptions = {}): Promise<StorageGetResult> {
+      const target = options.fresh
+        ? `${objectBase}/${encodeObjectPath(path)}?t=${Date.now()}-${++freshReadSequence}`
+        : `${objectBase}/${encodeObjectPath(path)}`;
+      const headers = options.fresh
+        ? {
+            ...authHeaders(config),
+            "Cache-Control": "no-cache, no-store, max-age=0",
+            Pragma: "no-cache",
+          }
+        : authHeaders(config);
+
       let response: Awaited<ReturnType<FetchLike>>;
       try {
-        response = await fetchImpl(`${objectBase}/${encodeObjectPath(path)}`, {
+        response = await fetchImpl(target, {
           method: "GET",
-          headers: authHeaders(config),
+          headers,
           cache: "no-store",
         });
       } catch (error) {

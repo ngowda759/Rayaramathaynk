@@ -212,6 +212,22 @@ describe("Aaradhane publisher", () => {
     expect(stored.events[0]).not.toHaveProperty("raghavendraPhase");
   });
 
+  it("re-reads instead of failing when the post-write read returns the previous version", async () => {
+    const storage = new MemoryStorage();
+    await publishAaradhaneYearDataset(storage, aaradhaneDataset(YEAR, raghavendraEvents(YEAR)));
+    storage.writes.length = 0;
+    storage.simulateStaleReads(aaradhaneYearPath(YEAR), storage.objects.get(aaradhaneYearPath(YEAR))!);
+
+    const changed = aaradhaneDataset(YEAR, [
+      ...raghavendraEvents(YEAR),
+      aaradhaneEvent(YEAR, { eventKey: `extra-${YEAR}` }),
+    ]);
+    const result = await publishAaradhaneYearDataset(storage, changed);
+
+    expect(result.unchanged).toBe(false);
+    expect(storage.freshReads).toContain(aaradhaneYearPath(YEAR));
+  });
+
   it("treats an existing dataset that differs only in metadata.generated_at as unchanged", async () => {
     // Re-importing unchanged source data must not create a snapshot or rewrite the
     // published object just because the wall-clock stamp moved.
