@@ -19,6 +19,7 @@ import {
 } from "./paths";
 import {
   validateAaradhaneYearDataset,
+  withoutGeneratedAt,
   type AaradhaneYearDataset,
 } from "./schemas";
 import { isStorageNotFound, type ObjectStorage } from "./storage";
@@ -143,7 +144,10 @@ export async function publishAaradhaneYearDataset(
   const attempts = options.verifyAttempts ?? 2;
 
   const existing = await readExistingYear(storage, year);
-  const unchanged = existing !== null && jsonEqual(existing, dataset);
+  const unchanged =
+    existing !== null &&
+    (jsonEqual(existing, dataset) ||
+      jsonEqual(withoutGeneratedAt(existing), withoutGeneratedAt(dataset)));
 
   let snapshotPath: string | null = null;
 

@@ -495,3 +495,20 @@ export function buildAaradhaneYearDataset(
     events,
   };
 }
+
+/**
+ * A yearly dataset embeds the wall-clock `metadata.generated_at` of the run that
+ * produced it, so re-importing unchanged source data yields a dataset that
+ * differs only in that field. Publishers compare this stripped form when they
+ * decide whether a published object is already up to date, so a re-run after a
+ * partial import neither refuses the existing object nor rewrites it (and, for
+ * Aaradhane, does not create a pointless snapshot).
+ */
+export function withoutGeneratedAt(value: unknown): unknown {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  const metadata = record.metadata;
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) return value;
+  const { generated_at: _generatedAt, ...rest } = metadata as Record<string, unknown>;
+  return { ...record, metadata: rest };
+}

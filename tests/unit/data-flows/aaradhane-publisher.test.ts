@@ -10,6 +10,7 @@ import {
   aaradhaneSnapshotPath,
   aaradhaneYearPath,
 } from "@/lib/data-flows/paths";
+import { buildAaradhaneYearDataset } from "@/lib/data-flows/schemas";
 import {
   MemoryStorage,
   aaradhaneDataset,
@@ -189,6 +190,46 @@ describe("Aaradhane publisher", () => {
         aaradhaneDataset(YEAR, raghavendraEvents(YEAR).slice(0, 2))
       )
     ).rejects.toBeInstanceOf(AaradhanePublishError);
+    expect(storage.writes).toEqual([]);
+  });
+
+  it("publishes an event whose optional phase is present but undefined", async () => {
+    // The historical import spreads every guru, so a guru without a Rāghavēndra
+    // phase carries the key with an undefined value. JSON drops it on upload; the
+    // read-back comparison must not treat the in-memory form as different, or the
+    // import aborts after the object has already been written.
+    const storage = new MemoryStorage();
+    const events = [
+      aaradhaneEvent(YEAR, { eventKey: `no-phase-${YEAR}`, raghavendraPhase: undefined }),
+      ...raghavendraEvents(YEAR),
+    ];
+
+    const result = await publishAaradhaneYearDataset(storage, aaradhaneDataset(YEAR, events));
+
+    expect(result.unchanged).toBe(false);
+    expect(storage.writes).toEqual([aaradhaneYearPath(YEAR)]);
+    const stored = JSON.parse(storage.objects.get(aaradhaneYearPath(YEAR))!);
+    expect(stored.events[0]).not.toHaveProperty("raghavendraPhase");
+  });
+
+  it("treats an existing dataset that differs only in metadata.generated_at as unchanged", async () => {
+    // Re-importing unchanged source data must not create a snapshot or rewrite the
+    // published object just because the wall-clock stamp moved.
+    const storage = new MemoryStorage();
+    const events = raghavendraEvents(YEAR);
+    await publishAaradhaneYearDataset(storage, aaradhaneDataset(YEAR, events));
+    storage.writes.length = 0;
+
+    const rebuilt = buildAaradhaneYearDataset(
+      YEAR,
+      events,
+      `Data_flows/Panchanga/years/${YEAR}.json`,
+      "2027-06-01T00:00:00+05:30"
+    );
+    const result = await publishAaradhaneYearDataset(storage, rebuilt);
+
+    expect(result.unchanged).toBe(true);
+    expect(result.snapshotPath).toBeNull();
     expect(storage.writes).toEqual([]);
   });
 });
