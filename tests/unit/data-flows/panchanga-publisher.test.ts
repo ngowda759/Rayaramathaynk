@@ -185,6 +185,29 @@ describe("Panchanga historical publication", () => {
     expect(storage.writes).toEqual([]);
   });
 
+  it("skips a yearly object that differs only in metadata.generated_at", async () => {
+    // A re-run of the historical import rebuilds the same dataset with a fresh
+    // wall-clock stamp. Refusing it would make a partially completed import
+    // impossible to resume without deleting published objects.
+    const storage = new MemoryStorage();
+    const dates = ["2026-01-01", "2026-01-02"];
+    await publishPanchangaYearDataset(storage, panchangaDataset(2026, dates), {
+      requireCompleteYear: false,
+    });
+    storage.writes.length = 0;
+
+    const rebuilt = panchangaDataset(2026, dates);
+    rebuilt.metadata.generated_at = "2027-01-01T00:00:00+05:30";
+    const result = await publishPanchangaYearDataset(storage, rebuilt, {
+      requireCompleteYear: false,
+    });
+
+    expect(storage.writes).toEqual([]);
+    expect(result.dayCount).toBe(2);
+    const stored = JSON.parse(storage.objects.get(panchangaYearPath(2026))!);
+    expect(stored.metadata.generated_at).toBe("2026-01-01T00:00:00+05:30");
+  });
+
   it("aborts before the first write when a daily object is invalid JSON", async () => {
     const storage = new MemoryStorage();
     const dates = ["2026-01-01", "2026-01-02"];

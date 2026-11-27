@@ -13,6 +13,7 @@
  */
 
 import { serializeJson, parseJson, jsonEqual } from "./json";
+import { withoutGeneratedAt } from "./schemas";
 import {
   panchangaCurrentPath,
   panchangaDailyPath,
@@ -228,6 +229,9 @@ async function preflightYearObject(
     );
   }
   if (jsonEqual(parsed.value, expected)) return "skip";
+  if (step === "yearly" && jsonEqual(withoutGeneratedAt(parsed.value), withoutGeneratedAt(expected))) {
+    return "skip";
+  }
   throw new PanchangaPublishError(
     step,
     `${path} already exists with different content; refusing to overwrite it`
