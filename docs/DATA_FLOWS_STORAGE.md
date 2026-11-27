@@ -252,6 +252,24 @@ Upload requires all three of `--publish`, `--confirm-production` and
 `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true`. Existing objects with different
 content are refused rather than overwritten.
 
+The supported way to run the import in CI is the manual workflow
+`.github/workflows/data-flows-historical-import.yml`:
+
+- `workflow_dispatch` only, bound to the `production` environment, and only from
+  `main`;
+- requires the dispatch input `confirm_production` to equal exactly
+  `publish-historical-data-flows`;
+- maps `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from the
+  repository secrets (names only, never printed), runs
+  `scripts/lib/guard-approved-supabase-url.mjs` before the write, and sets
+  `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true` on the publish step only;
+- uploads `artifacts/data-flows/historical-import-report.json` and the combined
+  run log as an artifact, including when the import fails.
+
+The import is effectively one-shot per year: after a successful publish, a re-run
+stops in preflight on the yearly object ("already exists with different content")
+rather than overwriting it.
+
 ## 8. Consumer inventory
 
 | Consumer | Before | After |
@@ -297,7 +315,9 @@ The owner must approve each write step. The safe order is:
    stops here.
 3. **Approve historical import.** Set
    `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true` only after reviewing the dry-run
-   report, then run with `--publish --confirm-production`. This writes yearly
+   report, then run with `--publish --confirm-production` — locally, or through
+   the `Import Historical Data Flows to Storage` workflow with
+   `confirm_production: publish-historical-data-flows`. This writes yearly
    Panchanga objects, daily Panchanga objects and yearly Aaradhane objects. It
    does not advance either `current.json`.
 4. **Verify imported history.** Read back sample daily objects, every yearly
