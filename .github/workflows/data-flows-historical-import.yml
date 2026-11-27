@@ -1,0 +1,161 @@
+# Import Historical Data Flows to Storage — manual, confirmed publication only.
+#
+# This is the ONLY workflow that runs
+# `scripts/migrate-data-flows-to-storage.ts`, the bulk import of the repository's
+# historical Panchanga and Aaradhane datasets into Supabase Storage. The daily
+# Panchanga publisher (`panchanga.yml`) and the Aaradhane generator
+# (`aaradhane.yml`) are separate flows and are not modified by this file.
+#
+# What the import writes (fixed object keys, no deletions):
+#   Data_flows/Panchanga/daily/YYYY-MM-DD.json  2026 + 2027
+#   Data_flows/Panchanga/years/2026.json, 2027.json
+#   Data_flows/Aaradhane/years/2026.json, 2027.json
+# It never advances `Data_flows/Panchanga/current.json` or
+# `Data_flows/Aaradhane/current.json`; those are the daily/Aaradhane workflows'
+# responsibility.
+#
+# Safety properties (do not weaken):
+#   - `workflow_dispatch` only: there is no schedule and no push trigger, so this
+#     import cannot run by itself;
+#   - bound to the `production` environment, so a protected environment requires a
+#     human approval before the job starts;
+#   - the job only runs from `main`, so an unmerged branch can never publish;
+#   - the exact confirmation phrase `publish-historical-data-flows` is required in
+#     `confirm_production`; anything else fails before the guard runs;
+#   - `DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED=true` is set on the publish step only,
+#     after the confirmation step has passed — never at job level;
+#   - `scripts/lib/guard-approved-supabase-url.mjs` runs before the publish step and
+#     refuses any project but the approved one;
+#   - the import script itself preflights every target object before its first
+#     write and aborts with zero writes on a conflicting, invalid or unreadable
+#     object; it also requires `--publish --confirm-production` to write at all;
+#   - no repository variable gates this workflow, and no secret value is ever
+#     printed: the guard reports a project fingerprint only.
+#
+# The import is effectively one-shot per year: a re-run after a successful publish
+# stops in preflight ("already exists with different content") rather than
+# overwriting. That is intended; do not add a force flag.
+name: Import Historical Data Flows to Storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production:
+        description: 'Type exactly: publish-historical-data-flows (writes Panchanga and Aaradhane 2026/2027 to production Storage)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-flows-historical-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    name: Import historical Panchanga and Aaradhane datasets
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    # A production Storage writer must run the reviewed code on the default branch.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    permissions:
+      contents: read
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      # `inputs.confirm_production` is untrusted input. It is passed through an
+      # environment variable and compared as a quoted shell variable, never
+      # interpolated into the script text: `${{ inputs.confirm_production }}` inside
+      # `run:` would let a value like `$(...)` or `; ...` execute, and
+      # `$(echo publish-historical-data-flows)` would even satisfy the check.
+      - name: Confirm production publication
+        shell: bash
+        env:
+          CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
+        run: |
+          if [[ "$CONFIRM_PRODUCTION" != "publish-historical-data-flows" ]]; then
+            echo "ERROR: confirm_production did not match."
+            echo "This workflow publishes Panchanga and Aaradhane 2026/2027 to production Storage."
+            echo "Expected the exact value: publish-historical-data-flows"
+            exit 1
+          fi
+          echo "Confirmation accepted."
+
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      # The import graph (scripts/migrate-data-flows-to-storage.ts -> lib/data-flows,
+      # lib/aaradhane, data/aaradhane) reaches no Prisma client and no
+      # @supabase/supabase-js, so the postinstall `prisma generate` is not needed.
+      - name: Install npm dependencies
+        run: npm ci --ignore-scripts
+
+      # Names only, never values: fail closed before the guard if a secret is absent.
+      - name: Verify required secrets are present
+        shell: bash
+        run: |
+          missing=()
+          if [[ -z "$NEXT_PUBLIC_SUPABASE_URL" ]]; then missing+=("NEXT_PUBLIC_SUPABASE_URL"); fi
+          if [[ -z "$SUPABASE_SERVICE_ROLE_KEY" ]]; then missing+=("SUPABASE_SERVICE_ROLE_KEY"); fi
+          if (( ${#missing[@]} > 0 )); then
+            echo "ERROR: missing required secret(s): ${missing[*]}"
+            echo "No object was written."
+            exit 1
+          fi
+          echo "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are present."
+
+      # Fails closed on a missing, malformed or mismatched Supabase URL. Prints a
+      # project fingerprint, never the URL or the key. Runs before any write.
+      - name: Guard approved Supabase URL
+        run: node scripts/lib/guard-approved-supabase-url.mjs
+
+      # The approval flag lives on this step, not on the job, so it is set only after
+      # the confirmation step has passed. The report and the combined output are
+      # kept under artifacts/ so the upload step can publish them on success or
+      # failure.
+      - name: Publish historical Panchanga and Aaradhane datasets
+        shell: bash
+        env:
+          DATA_FLOWS_HISTORICAL_UPLOAD_APPROVED: "true"
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/data-flows
+          npx tsx scripts/migrate-data-flows-to-storage.ts \
+            --publish \
+            --confirm-production \
+            --report artifacts/data-flows/historical-import-report.json \
+            2>&1 | tee artifacts/data-flows/historical-import.log
+
+      - name: Upload import report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: data-flows-historical-import
+          path: artifacts/data-flows/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Historical data-flow import"
+            echo ""
+            echo "- Confirmation gate: publish-historical-data-flows (required)"
+            echo "- Panchanga: 2026, 2027 (daily + yearly objects)"
+            echo "- Aaradhane: 2026, 2027 (yearly objects, snapshots when replacing)"
+            echo "- current.json: never advanced by this workflow"
+            echo "- Report: artifacts/data-flows/historical-import-report.json"
+          } >> "$GITHUB_STEP_SUMMARY"

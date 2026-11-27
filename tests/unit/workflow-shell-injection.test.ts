@@ -280,6 +280,7 @@ describe("static: no untrusted expression is interpolated into a run: block", ()
       "ai-knowledge-migration-apply.yml",
       "resolve-raya-ai-baseline.yml",
       "aaradhane.yml",
+      "data-flows-historical-import.yml",
     ];
     const unpinned: string[] = [];
     for (const file of productionCapable) {
@@ -301,21 +302,31 @@ describe("static: no untrusted expression is interpolated into a run: block", ()
 });
 
 describe("behavioral: confirmation gates cannot execute injected commands", () => {
-  const gates: Array<[string, string, string]> = [
+  // [file, step name, expected phrase, dispatch input name]
+  const gates: Array<[string, string, string, string]> = [
     [
       "supabase-migrations.yml",
       "Check confirmation phrase",
       "apply-supabase-migrations",
+      "confirm",
     ],
     [
       "ai-knowledge-migration-apply.yml",
       "Check confirmation phrase",
       "apply-create-ai-knowledge",
+      "confirm",
     ],
     [
       "resolve-raya-ai-baseline.yml",
       "Check confirmation phrase",
       "resolve-baseline-raya-ai",
+      "confirm",
+    ],
+    [
+      "data-flows-historical-import.yml",
+      "Confirm production publication",
+      "publish-historical-data-flows",
+      "confirm_production",
     ],
   ];
 
@@ -337,13 +348,13 @@ describe("behavioral: confirmation gates cannot execute injected commands", () =
 
   it.each(gates)(
     "%s rejects metacharacter and command-substitution payloads without executing them",
-    (file, step, phrase) => {
+    (file, step, phrase, inputName) => {
       const sentinel = sentinelFor(file.split(".")[0]);
       if (existsSync(sentinel)) unlinkSync(sentinel);
       try {
         for (const [label, raw] of metacharacterPayloads(sentinel)) {
           const payload = raw.replace(/PLACEHOLDER/g, phrase);
-          const r = execStep(file, step, { confirm: payload });
+          const r = execStep(file, step, { [inputName]: payload });
           expect([file, label, r.status !== 0]).toEqual([file, label, true]);
           expect(existsSync(sentinel)).toBe(false);
         }
@@ -353,24 +364,29 @@ describe("behavioral: confirmation gates cannot execute injected commands", () =
     },
   );
 
-  it.each(gates)("%s rejects empty, whitespace, case and near-miss values", (file, step) => {
-    for (const v of [
-      "",
-      " ",
-      "APPLY",
-      "apply",
-      " apply-supabase-migrations",
-      "apply-supabase-migrations ",
-      "-apply-supabase-migrations",
-      "apply-supabase-migrations\nextra",
-    ]) {
-      const r = execStep(file, step, { confirm: v });
-      expect([file, v, r.status !== 0]).toEqual([file, v, true]);
+  it.each(gates)(
+    "%s rejects empty, whitespace, case and near-miss values",
+    (file, step, _phrase, inputName) => {
+      for (const v of [
+        "",
+        " ",
+        "APPLY",
+        "apply",
+        " apply-supabase-migrations",
+        "apply-supabase-migrations ",
+        "-apply-supabase-migrations",
+        "apply-supabase-migrations\nextra",
+        "publish-historical-data-flows ",
+        "PUBLISH-HISTORICAL-DATA-FLOWS",
+      ]) {
+        const r = execStep(file, step, { [inputName]: v });
+        expect([file, v, r.status !== 0]).toEqual([file, v, true]);
+      }
     }
-  });
+  );
 
-  it.each(gates)("%s accepts only its exact phrase", (file, step, phrase) => {
-    const r = execStep(file, step, { confirm: phrase });
+  it.each(gates)("%s accepts only its exact phrase", (file, step, phrase, inputName) => {
+    const r = execStep(file, step, { [inputName]: phrase });
     expect([file, r.status]).toEqual([file, 0]);
   });
 
