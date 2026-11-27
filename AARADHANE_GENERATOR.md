@@ -30,19 +30,22 @@ Both must be present for an `--apply` run.
 
 ## Workflow
 
-### Step 1: Generate Panchanga Data (One-time per year)
+### Step 1: Ensure the Panchanga year is in Supabase Storage
 
-The Panchanga data contains daily lunar calendar information needed to calculate tithi dates.
+The generator reads `Data_flows/Panchanga/years/YYYY.json` from Storage; it no
+longer reads a local `data/panchanga/YYYY/` directory.
 
 ```bash
-# Generate Panchanga for a specific year
-python scripts/generate_panchanga.py --year 2027 --output data/panchanga/2027
+# Validate and optionally import the historical local files (dry run by default)
+npx tsx scripts/migrate-data-flows-to-storage.ts --report /tmp/historical.json
 
-# Generate Panchanga for current year
-python scripts/generate_panchanga.py --year $(date +%Y) --output data/panchanga/$(date +%Y)
+# Owner-approved import only:
+# npx tsx scripts/migrate-data-flows-to-storage.ts \
+#   --publish --confirm-production
 ```
 
-This creates 365/366 JSON files in `data/panchanga/{year}/`.
+The scheduled Panchanga workflow keeps `years/YYYY.json` current. If a year is
+missing, the generator exits with a clear error instead of falling back to disk.
 
 ---
 
@@ -55,7 +58,19 @@ This creates 365/366 JSON files in `data/panchanga/{year}/`.
 npm run generate:aaradhane -- --year 2027
 ```
 
-#### Option B: Apply to Supabase
+#### Option B: Publish the generated dataset to Storage
+
+```bash
+# Historical regeneration: writes years/YYYY.json and a snapshot,
+# but leaves current.json unchanged.
+npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year 2027 --publish
+
+# Explicitly advance the current pointer (scheduled workflow only, or an
+# owner-approved manual run of the latest year).
+npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year 2027 --publish --advance-current
+```
+
+#### Option C: Apply to the Supabase events table (legacy)
 
 ```bash
 # Upsert the planned events into the Supabase `events` table

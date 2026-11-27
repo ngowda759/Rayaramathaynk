@@ -11,8 +11,6 @@
  */
 
 import {
-  loadYearlyPanchanga,
-  hasYearlyPanchanga,
   findDatesForLunarDate,
   getDateRangeString,
   YearlyPanchanga,
@@ -52,15 +50,16 @@ export function generateAaradhanaeEvents(
     location: config?.location ?? DEFAULT_CONFIG.location!,
   };
 
-  if (!hasYearlyPanchanga(year)) {
+  if (!config?.yearlyPanchanga) {
     throw new Error(
-      `Panchanga data not found for year ${year}. ` +
-      `Please ensure data exists in data/panchanga/${year}/ directory. ` +
-      `Run 'python scripts/generate_panchanga.py' to generate the data.`
+      `Panchanga data for year ${year} was not supplied. ` +
+      `Load years/${year}.json from Supabase Storage with ` +
+      `readYearlyPanchanga() and pass the converted map as ` +
+      `config.yearlyPanchanga.`
     );
   }
 
-  const yearlyPanchanga = loadYearlyPanchanga(year);
+  const yearlyPanchanga = config.yearlyPanchanga;
   const events: GeneratedAaradhaneEvent[] = [];
   let raghavendraCount = 0;
   let majorCount = 0;

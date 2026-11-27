@@ -7,7 +7,6 @@
  */
 
 import {
-  loadYearlyPanchanga,
   findDatesForLunarDate,
   getDateRangeString,
   YearlyPanchanga,

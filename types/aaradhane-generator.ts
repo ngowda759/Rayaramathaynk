@@ -269,6 +269,14 @@ export interface UpdateResult {
 export interface GeneratorConfig {
   /** Year to generate events for */
   year: number;
+
+  /**
+   * Panchanga for the year, loaded from the Panchanga Storage flow.
+   *
+   * Required by `generateAaradhanaeEvents`; it is a parameter rather than an
+   * internal filesystem read so the generator cannot depend on local JSON.
+   */
+  yearlyPanchanga?: import("../lib/aaradhane/panchanga").YearlyPanchanga;
   
   /** Whether to update existing events */
   updateExisting: boolean;

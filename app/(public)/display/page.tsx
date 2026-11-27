@@ -47,6 +47,9 @@ export default function DigitalSignagePage() {
   const [loading, setLoading] = useState(true);
   const [youtubeUrl, setYoutubeUrl] = useState("https://www.youtube.com/@Guru_Raghavendra_Rayaru");
   const [panchanga, setPanchanga] = useState<LivePanchanga | null>(null);
+  const [panchangaStatus, setPanchangaStatus] = useState<
+    "loading" | "ok" | "unavailable"
+  >("loading");
 
   // Update clock every second
   useEffect(() => {
@@ -119,49 +122,58 @@ export default function DigitalSignagePage() {
   useEffect(() => {
     async function fetchPanchanga() {
       try {
-        const res = await fetch("/data/panchanga/current.json", {
+        const res = await fetch("/api/panchanga/current", {
           cache: "no-store",
         });
         const json = await res.json();
 
-        if (!json || json.error) return;
+        // A stale or unavailable record is not today's Panchanga.
+        if (!res.ok || json.status !== "ok" || !json.record) {
+          setPanchanga(null);
+          setPanchangaStatus("unavailable");
+          return;
+        }
+        const record = json.record;
 
         setPanchanga({
-          tithi: json.tithi?.name || "—",
-          nakshatra: json.nakshatra?.name || "—",
-          yoga: json.yoga?.name || "—",
-          karana: json.karana?.name || "—",
-          sunrise: json.sun?.sunrise
-            ? new Date(json.sun.sunrise).toLocaleTimeString("en-IN", {
+          tithi: record.tithi?.name || "—",
+          nakshatra: record.nakshatra?.name || "—",
+          yoga: record.yoga?.name || "—",
+          karana: record.karana?.name || "—",
+          sunrise: record.sun?.sunrise
+            ? new Date(record.sun.sunrise).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : "—",
-          sunset: json.sun?.sunset
-            ? new Date(json.sun.sunset).toLocaleTimeString("en-IN", {
+          sunset: record.sun?.sunset
+            ? new Date(record.sun.sunset).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : "—",
-          rahuKalam: json.rahu_kalam?.start
-            ? new Date(json.rahu_kalam.start).toLocaleTimeString("en-IN", {
+          rahuKalam: record.rahu_kalam?.start
+            ? new Date(record.rahu_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
-          gulikaKalam: json.gulika_kalam?.start
-            ? new Date(json.gulika_kalam.start).toLocaleTimeString("en-IN", {
+          gulikaKalam: record.gulika_kalam?.start
+            ? new Date(record.gulika_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
         });
+        setPanchangaStatus("ok");
       } catch (err) {
         console.error("Error fetching Panchanga:", err);
+        setPanchanga(null);
+        setPanchangaStatus("unavailable");
       }
     }
     fetchPanchanga();
@@ -267,6 +279,13 @@ export default function DigitalSignagePage() {
               <Sun className="h-6 w-6 text-amber-400" />
               <h2 className="text-xl font-semibold text-white">Today&apos;s Panchanga</h2>
             </div>
+            {panchangaStatus !== "ok" && (
+              <p className="mb-3 text-sm text-amber-200" role="status">
+                {panchangaStatus === "loading"
+                  ? "Loading live Panchanga..."
+                  : "Live Panchanga is unavailable."}
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl bg-amber-900/50 p-4 text-center">
                 <p className="text-sm text-amber-300">Tithi</p>

@@ -1,3 +1,5 @@
+import { getIstDateString } from "@/lib/data-flows/time";
+
 export interface PanchangaData {
   tithi: string;
   nakshatra: string;
@@ -16,7 +18,7 @@ export function getCachedPanchanga(date?: string): PanchangaData {
     karana: "—",
     sunrise: "—",
     sunset: "—",
-    date: date ?? new Date().toISOString().slice(0, 10),
+    date: date ?? getIstDateString(),
   };
 }
 
@@ -36,9 +38,7 @@ export function getPanchangaWithFallback(
       karana: liveData.karana ?? "—",
       sunrise: liveData.sunrise,
       sunset: liveData.sunset,
-      date:
-        liveData.date ??
-        new Date().toISOString().slice(0, 10),
+      date: liveData.date ?? getIstDateString(),
     };
   }
 

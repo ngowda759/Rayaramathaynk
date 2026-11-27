@@ -1,128 +1,102 @@
 // Panchanga Retrieval - Daily panchanga information
 // Single source of truth for panchanga data
+//
+// Data is read from Supabase Storage through the server-only data-flow layer.
+// There is no filesystem read of `public/data/panchanga` and no UTC date
+// derivation: "today" is the Asia/Kolkata calendar day.
 
 import { PanchangaData, RetrievedData } from "./types";
 import { RetrievalType } from "../intent/types";
-import { getCachedPanchanga, PanchangaData as CachedPanchanga } from "@/lib/panchanga-cache";
-import * as fs from 'fs';
-import * as path from 'path';
+import { getCachedPanchanga } from "@/lib/panchanga-cache";
+import type { PanchangaRecord } from "@/lib/data-flows/schemas";
+import { getIstDateString, isValidDateString } from "@/lib/data-flows/time";
+import { getCurrentPanchanga, getDailyPanchanga } from "@/lib/data-flows/server";
 
-// Cache for panchanga
 let cachedPanchanga: PanchangaData | null = null;
 let cachedDate: string | null = null;
 
-/**
- * Get panchanga date string
- */
-function getDateString(date: Date = new Date()): string {
-  return date.toISOString().slice(0, 10);
+function formatTime(isoString: string): string {
+  const parsed = new Date(isoString);
+  if (Number.isNaN(parsed.getTime())) return "\u2014";
+  return parsed.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  });
 }
 
-/**
- * Convert cached panchanga format to our format
- */
-function convertPanchanga(cached: CachedPanchanga): PanchangaData {
+function recordToPanchanga(record: PanchangaRecord): PanchangaData {
   return {
-    date: cached.date,
-    tithi: cached.tithi,
-    nakshatra: cached.nakshatra,
-    yoga: cached.yoga,
-    karana: cached.karana,
-    sunrise: cached.sunrise,
-    sunset: cached.sunset,
+    date: record.date,
+    tithi: record.tithi.name,
+    nakshatra: `${record.nakshatra.name} (Pada ${record.nakshatra.pada})`,
+    yoga: record.yoga.name,
+    karana: record.karana.name,
+    sunrise: formatTime(record.sun.sunrise),
+    sunset: formatTime(record.sun.sunset),
+  };
+}
+
+function unavailable(date: string): PanchangaData {
+  return getCachedPanchanga(date);
+}
+
+function cachedResult(now: number): RetrievedData<PanchangaData> {
+  return {
+    data: cachedPanchanga as PanchangaData,
+    source: RetrievalType.REPOSITORY,
+    confidence: 100,
+    retrievedAt: now,
+    fromCache: true,
   };
 }
 
 /**
- * Try to load panchanga from JSON file
- */
-function loadFromJsonFile(date: string): PanchangaData | null {
-  try {
-    // Try current.json first (contains today's panchanga)
-    const currentPath = path.join(process.cwd(), 'public', 'data', 'panchanga', 'current.json');
-    
-    if (fs.existsSync(currentPath)) {
-      const content = fs.readFileSync(currentPath, 'utf-8');
-      const data = JSON.parse(content);
-      
-      // Extract and format times from ISO strings (with India timezone)
-      const formatTime = (isoString: string | undefined) => {
-        if (!isoString) return "—";
-        const d = new Date(isoString);
-        return d.toLocaleTimeString('en-IN', { 
-          hour: '2-digit', 
-          minute: '2-digit', 
-          hour12: true,
-          timeZone: 'Asia/Kolkata'
-        });
-      };
-      
-      return {
-        date: data.date || date,
-        tithi: data.tithi?.name || "—",
-        nakshatra: data.nakshatra?.name ? `${data.nakshatra.name} (Pada ${data.nakshatra.pada})` : "—",
-        yoga: data.yoga?.name || "—",
-        karana: data.karana?.name || "—",
-        sunrise: formatTime(data.sun?.sunrise),
-        sunset: formatTime(data.sun?.sunset),
-      };
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("[Panchanga Retrieval] Error loading from JSON:", error);
-    return null;
-  }
-}
-
-/**
- * Get today's panchanga
+ * Get today's panchanga from Storage.
+ *
+ * A record from another Asia/Kolkata day is explicitly not used: the reader
+ * classifies it as `stale`, and this function returns the placeholder fallback
+ * rather than presenting yesterday's Panchanga as today's.
  */
 export async function getTodayPanchanga(): Promise<RetrievedData<PanchangaData>> {
-  const today = getDateString();
+  const today = getIstDateString();
   const now = Date.now();
 
-  // Check cache
   if (cachedPanchanga && cachedDate === today) {
-    return {
-      data: cachedPanchanga,
-      source: RetrievalType.REPOSITORY,
-      confidence: 100,
-      retrievedAt: now,
-      fromCache: true,
-    };
+    return cachedResult(now);
   }
 
   try {
-    // Try to load from JSON file
-    let panchanga = loadFromJsonFile(today);
-    
-    if (!panchanga) {
-      // Use cached/fallback if JSON not available
-      const cached = getCachedPanchanga(today);
-      panchanga = convertPanchanga(cached);
+    const result = await getCurrentPanchanga();
+    if (result.status === "ok" && result.record) {
+      const panchanga = recordToPanchanga(result.record);
+      cachedPanchanga = panchanga;
+      cachedDate = today;
+      return {
+        data: panchanga,
+        source: RetrievalType.REPOSITORY,
+        confidence: 95,
+        retrievedAt: now,
+        fromCache: false,
+      };
     }
 
-    cachedPanchanga = panchanga;
-    cachedDate = today;
-
+    // stale or unavailable: do not cache, do not fabricate astronomical values.
     return {
-      data: panchanga,
-      source: RetrievalType.REPOSITORY,
-      confidence: panchanga.tithi !== "—" ? 95 : 50,
+      data: unavailable(today),
+      source: RetrievalType.FALLBACK,
+      confidence: 0,
       retrievedAt: now,
       fromCache: false,
     };
   } catch (error) {
     console.error("[Panchanga Retrieval] Error:", error);
-    
-    // Return cached or default
-    const fallback = cachedPanchanga || convertPanchanga(getCachedPanchanga(today));
-    
+    const sameDayCache = cachedPanchanga && cachedDate === today ? cachedPanchanga : null;
     return {
-      data: fallback,
+      data: sameDayCache ?? unavailable(today),
       source: RetrievalType.FALLBACK,
-      confidence: 50,
+      confidence: 0,
       retrievedAt: now,
       fromCache: false,
     };
@@ -130,50 +104,58 @@ export async function getTodayPanchanga(): Promise<RetrievedData<PanchangaData>>
 }
 
 /**
- * Get panchanga for a specific date
+ * Get panchanga for a specific date from the historical daily object.
  */
 export async function getPanchangaForDate(
   date: Date
 ): Promise<RetrievedData<PanchangaData>> {
-  const dateStr = getDateString(date);
+  const dateStr = getIstDateString(date);
   const now = Date.now();
 
-  // Check cache
-  if (cachedPanchanga && cachedDate === dateStr) {
+  if (!isValidDateString(dateStr)) {
     return {
-      data: cachedPanchanga,
-      source: RetrievalType.REPOSITORY,
-      confidence: 100,
+      data: unavailable(dateStr),
+      source: RetrievalType.FALLBACK,
+      confidence: 0,
       retrievedAt: now,
-      fromCache: true,
+      fromCache: false,
     };
   }
 
+  if (cachedPanchanga && cachedDate === dateStr) {
+    return cachedResult(now);
+  }
+
   try {
-    let panchanga = loadFromJsonFile(dateStr);
-    
-    if (!panchanga) {
-      const cached = getCachedPanchanga(dateStr);
-      panchanga = convertPanchanga(cached);
+    const result = await getDailyPanchanga(dateStr);
+    if (result.status === "ok" && result.record) {
+      const panchanga = recordToPanchanga(result.record);
+      cachedPanchanga = panchanga;
+      cachedDate = dateStr;
+      return {
+        data: panchanga,
+        source: RetrievalType.REPOSITORY,
+        confidence: 95,
+        retrievedAt: now,
+        fromCache: false,
+      };
     }
 
-    cachedPanchanga = panchanga;
-    cachedDate = dateStr;
-
     return {
-      data: panchanga,
-      source: RetrievalType.REPOSITORY,
-      confidence: panchanga.tithi !== "—" ? 95 : 50,
+      data: unavailable(dateStr),
+      source: RetrievalType.FALLBACK,
+      confidence: 0,
       retrievedAt: now,
       fromCache: false,
     };
   } catch (error) {
     console.error("[Panchanga Retrieval] Error:", error);
-    
+    const sameDayCache =
+      cachedPanchanga && cachedDate === dateStr ? cachedPanchanga : null;
     return {
-      data: cachedPanchanga || convertPanchanga(getCachedPanchanga(dateStr)),
+      data: sameDayCache ?? unavailable(dateStr),
       source: RetrievalType.FALLBACK,
-      confidence: 50,
+      confidence: 0,
       retrievedAt: now,
       fromCache: false,
     };
@@ -184,18 +166,18 @@ export async function getPanchangaForDate(
  * Format panchanga for display
  */
 export function formatPanchangaForDisplay(panchanga: PanchangaData): string {
-  let text = "📿 **Today's Panchanga:**\n\n";
-  
+  let text = "\ud83d\udcff **Today's Panchanga:**\n\n";
+
   text += `| Item | Value |\n`;
   text += `|------|-------|\n`;
-  text += `| 📅 Date | ${panchanga.date} |\n`;
-  text += `| 🌅 Sunrise | ${panchanga.sunrise} |\n`;
-  text += `| 🌇 Sunset | ${panchanga.sunset} |\n`;
-  text += `| 🪔 Tithi | ${panchanga.tithi} |\n`;
-  text += `| ⭐ Nakshatra | ${panchanga.nakshatra} |\n`;
-  text += `| 🧘 Yoga | ${panchanga.yoga} |\n`;
-  text += `| ⏰ Karana | ${panchanga.karana} |\n`;
-  
+  text += `| \ud83d\udcc5 Date | ${panchanga.date} |\n`;
+  text += `| \ud83c\udf05 Sunrise | ${panchanga.sunrise} |\n`;
+  text += `| \ud83c\udf07 Sunset | ${panchanga.sunset} |\n`;
+  text += `| \ud83e\ude94 Tithi | ${panchanga.tithi} |\n`;
+  text += `| \u2b50 Nakshatra | ${panchanga.nakshatra} |\n`;
+  text += `| \ud83e\uddd8 Yoga | ${panchanga.yoga} |\n`;
+  text += `| \u23f0 Karana | ${panchanga.karana} |\n`;
+
   return text;
 }
 
@@ -203,26 +185,24 @@ export function formatPanchangaForDisplay(panchanga: PanchangaData): string {
  * Format panchanga in simple text
  */
 export function formatPanchangaSimple(panchanga: PanchangaData): string {
-  let text = `📿 **Today's Panchanga (${panchanga.date})**\n\n`;
-  text += `🌅 Sunrise: ${panchanga.sunrise}\n`;
-  text += `🌇 Sunset: ${panchanga.sunset}\n`;
-  text += `🪔 Tithi: ${panchanga.tithi}\n`;
-  text += `⭐ Nakshatra: ${panchanga.nakshatra}\n`;
-  
-  if (panchanga.yoga && panchanga.yoga !== "—") {
-    text += `🧘 Yoga: ${panchanga.yoga}\n`;
+  let text = `\ud83d\udcff **Today's Panchanga (${panchanga.date})**\n\n`;
+  text += `\ud83c\udf05 Sunrise: ${panchanga.sunrise}\n`;
+  text += `\ud83c\udf07 Sunset: ${panchanga.sunset}\n`;
+  text += `\ud83e\ude94 Tithi: ${panchanga.tithi}\n`;
+  text += `\u2b50 Nakshatra: ${panchanga.nakshatra}\n`;
+
+  if (panchanga.yoga && panchanga.yoga !== "\u2014") {
+    text += `\ud83e\uddd8 Yoga: ${panchanga.yoga}\n`;
   }
-  
-  if (panchanga.karana && panchanga.karana !== "—") {
-    text += `⏰ Karana: ${panchanga.karana}\n`;
+
+  if (panchanga.karana && panchanga.karana !== "\u2014") {
+    text += `\u23f0 Karana: ${panchanga.karana}\n`;
   }
-  
+
   return text;
 }
 
-/**
- * Clear panchanga cache
- */
+/** Clear panchanga cache */
 export function clearPanchangaCache(): void {
   cachedPanchanga = null;
   cachedDate = null;

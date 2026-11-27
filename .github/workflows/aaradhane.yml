@@ -3,9 +3,8 @@ name: Generate Yearly Aaradhane Events
 on:
   # Run every January at 9:00 AM IST (03:30 UTC)
   schedule:
-    - cron: "30 3 1 1 *"  # January 1st at 03:30 UTC = 9:00 AM IST
+    - cron: "30 3 1 1 *"
 
-  # Allow manual triggering
   workflow_dispatch:
     inputs:
       year:
@@ -13,56 +12,46 @@ on:
         required: false
         type: string
       dry_run:
-        description: "Dry run. Leave true: database writes are retired, and this workflow does not write to Supabase yet."
+        description: "Manual preview only. When true (default), Storage publication is skipped even if AARADHANE_STORAGE_PUBLISH_ENABLED is true."
         required: false
         type: boolean
         default: true
+      advance_current:
+        description: "Also update Data_flows/Aaradhane/current.json. Only applies when dry_run=false. Historical regeneration should leave this false."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  id-token: write
 
-# Two overlapping runs could interleave a scheduled and a manual dispatch, and the
-# second would re-derive the target year while the first is mid-write once the
-# Supabase write is enabled (PR-D4b). Serialise them. `cancel-in-progress: false`
-# is deliberate: cancelling a run part-way through a year's writes is worse than
-# letting it finish, and the writer is idempotent.
 concurrency:
   group: aaradhane-generate
   cancel-in-progress: false
 
 jobs:
   generate-aaradhane:
+    name: Generate and validate Aaradhane events
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Destination binding. `environment: production` is only a human gate once the
-    # owner configures required reviewers on that environment; the YAML alone does
-    # not pause anything. It is added here because this job carries the Supabase
-    # writer (enabled in PR-D4b), so the gate exists before the write is enabled.
     environment: production
+    outputs:
+      target_year: ${{ steps.year.outputs.target_year }}
     env:
-      # Consumed by the shared approved-Supabase-URL guard below. This is the same
-      # credential the writer authenticates with, so the guard verifies the
-      # destination the write would actually reach.
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: "npm"
-
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.11"
-
-      - name: Install Python dependencies
-        run: |
-          pip install panchang
 
       - name: Install npm dependencies
         run: npm ci
@@ -72,232 +61,103 @@ jobs:
         env:
           INPUT_YEAR: ${{ inputs.year }}
         run: |
-          # Default to next year
-          CURRENT_YEAR=$(date +%Y)
+          CURRENT_YEAR=$(TZ=Asia/Kolkata date +%Y)
           TARGET_YEAR=$((CURRENT_YEAR + 1))
-          
-          # Use input year if provided. Validated here so the value that reaches
-          # later steps (via this step's output) is always a plain 4-digit year.
           if [[ -n "$INPUT_YEAR" ]]; then
             if [[ "$INPUT_YEAR" =~ ^[0-9]{4}$ ]]; then
               TARGET_YEAR="$INPUT_YEAR"
             else
-              echo "::error::year input must be exactly four digits (e.g. 2027); got a different value."
+              echo "::error::year input must be exactly four digits (e.g. 2027)."
               exit 1
             fi
           fi
-          
-          echo "target_year=$TARGET_YEAR" >> $GITHUB_OUTPUT
+          echo "target_year=$TARGET_YEAR" >> "$GITHUB_OUTPUT"
           echo "Target year: $TARGET_YEAR"
 
-      - name: Check if Panchanga data exists
-        id: check_panchanga
-        env:
-          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
-        run: |
-          PANCHANGA_DIR="data/panchanga/$TARGET_YEAR"
-          
-          if [ -d "$PANCHANGA_DIR" ]; then
-            FILE_COUNT=$(find "$PANCHANGA_DIR" -name "*.json" | wc -l)
-            echo "Found $FILE_COUNT Panchanga files for year $TARGET_YEAR"
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "file_count=$FILE_COUNT" >> $GITHUB_OUTPUT
-          else
-            echo "Panchanga data not found for year $TARGET_YEAR"
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "file_count=0" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate Panchanga data if needed
-        if: steps.check_panchanga.outputs.exists != 'true'
-        env:
-          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
-        run: |
-          mkdir -p "data/panchanga/$TARGET_YEAR"
-          
-          # Generate Panchanga for each day of the year
-          echo "Generating Panchanga data for year $TARGET_YEAR..."
-          
-          # Use a Python script to generate for all days
-          python -c "
-          import subprocess
-          from datetime import datetime, timedelta
-          
-          TARGET_YEAR = $TARGET_YEAR
-          start_date = datetime(TARGET_YEAR, 1, 1)
-          end_date = datetime(TARGET_YEAR, 12, 31)
-          
-          current = start_date
-          while current <= end_date:
-              date_str = current.strftime('%Y-%m-%d')
-              output_file = f'data/panchanga/{TARGET_YEAR}/{date_str}.json'
-              
-              # Run panchanga script with date
-              import sys
-              sys.path.insert(0, 'scripts')
-              try:
-                  from panchanga import compute, Location
-                  from datetime import date
-                  
-                  location = Location(lat=13.1005, lng=77.5963, tz='Asia/Kolkata')
-                  p = compute(current.date(), location)
-                  
-                  import json
-                  result = {
-                      'metadata': {
-                          'generator': 'Rayara Panchanga Engine',
-                          'version': '1.0.0',
-                          'generated_at': datetime.now().isoformat(),
-                          'valid_for': date_str,
-                          'timezone': 'Asia/Kolkata'
-                      },
-                      'date': date_str,
-                      'location': {
-                          'latitude': 13.1005,
-                          'longitude': 77.5963,
-                          'timezone': 'Asia/Kolkata',
-                      },
-                      'weekday': {
-                          'english': p.vara.english,
-                          'sanskrit': p.vara.name,
-                          'number': p.vara.number,
-                      },
-                      'sun': {
-                          'sunrise': p.sun.sunrise.isoformat(),
-                          'sunset': p.sun.sunset.isoformat(),
-                          'day_duration_hours': round(p.sun.day_duration_hours, 4),
-                      },
-                      'tithi': {
-                          'number': p.tithi.number,
-                          'name': p.tithi.name,
-                          'paksha': p.tithi.paksha.value,
-                          'start': p.tithi.start.isoformat(),
-                          'end': p.tithi.end.isoformat(),
-                      },
-                      'nakshatra': {
-                          'number': p.nakshatra.number,
-                          'name': p.nakshatra.name,
-                          'pada': p.nakshatra.pada,
-                          'lord': p.nakshatra.lord,
-                          'start': p.nakshatra.start.isoformat(),
-                          'end': p.nakshatra.end.isoformat(),
-                      },
-                      'yoga': {
-                          'number': p.yoga.number,
-                          'name': p.yoga.name,
-                          'start': p.yoga.start.isoformat(),
-                          'end': p.yoga.end.isoformat(),
-                      },
-                      'karana': {
-                          'number': p.karana.number,
-                          'name': p.karana.name,
-                          'start': p.karana.start.isoformat(),
-                          'end': p.karana.end.isoformat(),
-                      },
-                      'masa': {
-                          'number': p.masa.number,
-                          'name': p.masa.name,
-                          'is_adhik': p.masa.is_adhik,
-                          'paksha': p.masa.paksha.value,
-                      } if p.masa else None,
-                      'samvat': {
-                          'vikram': p.samvat.vikram,
-                          'shaka': p.samvat.shaka,
-                          'samvatsara': p.samvat.samvatsara_name,
-                      } if p.samvat else None,
-                      'rahu_kalam': {
-                          'name': 'Rahu Kalam',
-                          'start': p.rahu_kalam.start.isoformat(),
-                          'end': p.rahu_kalam.end.isoformat(),
-                          'is_auspicious': False,
-                      } if p.rahu_kalam else None,
-                      'yama_gandam': {
-                          'name': 'Yama Gandam',
-                          'start': p.yama_gandam.start.isoformat(),
-                          'end': p.yama_gandam.end.isoformat(),
-                          'is_auspicious': False,
-                      } if p.yama_gandam else None,
-                      'gulika_kalam': {
-                          'name': 'Gulika Kalam',
-                          'start': p.gulika_kalam.start.isoformat(),
-                          'end': p.gulika_kalam.end.isoformat(),
-                          'is_auspicious': False,
-                      } if p.gulika_kalam else None,
-                      'abhijit_muhurat': {
-                          'name': 'Abhijit Muhurat',
-                          'start': p.abhijit_muhurat.start.isoformat(),
-                          'end': p.abhijit_muhurat.end.isoformat(),
-                          'is_auspicious': True,
-                      } if p.abhijit_muhurat else None,
-                      'durmuhurta': [],
-                      'varjyam': [],
-                      'amrita_kalam': [],
-                  }
-                  
-                  with open(output_file, 'w', encoding='utf-8') as f:
-                      json.dump(result, f, indent=2, ensure_ascii=False)
-              except Exception as e:
-                  print(f'Error generating for {date_str}: {e}')
-              
-              current += timedelta(days=1)
-              
-              if current.day == 1:
-                  print(f'Generated Panchanga up to {date_str}...')
-          "
-          
-          echo "Panchanga generation complete"
-
-      # Destination guard. The writer authenticates with a Supabase URL plus a
-      # service-role key, not a project ref, so this is the guard that checks the
-      # credential actually in use. It fails closed and runs before either
-      # generation step. No duplicate guard is added.
+      # Destination guard. The generator reads the yearly Panchanga source from
+      # the same approved project, so verifying the URL also verifies the source.
       - name: Verify approved Supabase URL
         run: node scripts/lib/guard-approved-supabase-url.mjs
 
-      - name: Generate Aaradhane Events (Dry Run)
-        if: inputs.dry_run == 'true' || steps.check_panchanga.outputs.exists != 'true'
+      - name: Generate Aaradhane events (preview only)
         env:
           TARGET_YEAR: ${{ steps.year.outputs.target_year }}
         run: |
           npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year "$TARGET_YEAR" --dry-run
-
-      # Database writes are retired. This step keeps its original condition but
-      # ALWAYS passes --dry-run, so neither the cron nor a manual dispatch (even
-      # one that sets dry_run=false) can write to the database. No step in this
-      # workflow passes --apply.
-      - name: Generate Aaradhane Events (preview only)
-        if: inputs.dry_run != 'true' && steps.check_panchanga.outputs.exists == 'true'
-        env:
-          TARGET_YEAR: ${{ steps.year.outputs.target_year }}
-        run: |
-          echo "Database writes are retired; generating a preview only."
-          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts --year "$TARGET_YEAR" --dry-run
-
-      - name: Upload Aaradhane Data
-        if: steps.check_panchanga.outputs.exists != 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: aaradhane-panchanga-${{ steps.year.outputs.target_year }}
-          path: data/panchanga/${{ steps.year.outputs.target_year }}/
-          retention-days: 30
 
       - name: Summary
         env:
           TARGET_YEAR: ${{ steps.year.outputs.target_year }}
-          PANCHANGA_EXISTS: ${{ steps.check_panchanga.outputs.exists }}
-          PANCHANGA_FILES: ${{ steps.check_panchanga.outputs.file_count }}
-          IS_DRY_RUN: ${{ inputs.dry_run }}
+          PUBLISH_ENABLED: ${{ vars.AARADHANE_STORAGE_PUBLISH_ENABLED }}
         run: |
-          echo "## Aaradhane Event Generation Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Year:** $TARGET_YEAR" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Panchanga Data:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Exists: $PANCHANGA_EXISTS" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Files: $PANCHANGA_FILES" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> $GITHUB_STEP_SUMMARY
-          # No mode writes to a database: database writes are retired and the
-          # Supabase write is not enabled. Do not report "Live Update" for a run
-          # that cannot update anything.
-          echo "**Mode:** Preview only (no database write)" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Requested dry run:** $IS_DRY_RUN" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Aaradhane generation"
+            echo ""
+            echo "- Year: $TARGET_YEAR"
+            echo "- Panchanga source: Supabase Storage years/$TARGET_YEAR.json"
+            echo "- Database writes: disabled"
+            echo "- Storage publication enabled: ${PUBLISH_ENABLED:-false}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish-aaradhane:
+    name: Publish Aaradhane dataset to Storage
+    needs: generate-aaradhane
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Publication rules:
+    #   - scheduled run: variable must be true
+    #   - manual run: dry_run must be false AND the variable must be true
+    # The step below repeats the manual check before any write, so a future
+    # expression mistake still cannot publish a manual dry run.
+    if: ${{ vars.AARADHANE_STORAGE_PUBLISH_ENABLED == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)) }}
+    environment: production
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      TARGET_YEAR: ${{ needs.generate-aaradhane.outputs.target_year }}
+
+    steps:
+      - name: Refuse manual dry-run publication
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != false }}
+        run: |
+          echo "::error::Manual dispatch requested dry_run=true. Refusing to publish to Storage."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Verify approved Supabase URL
+        run: node scripts/lib/guard-approved-supabase-url.mjs
+
+      - name: Publish Aaradhane dataset
+        env:
+          ADVANCE_CURRENT: ${{ github.event_name == 'schedule' || inputs.advance_current == true }}
+        run: |
+          args=(--year "$TARGET_YEAR" --publish)
+          if [ "$ADVANCE_CURRENT" = "true" ]; then
+            args+=(--advance-current)
+          fi
+          npx ts-node --project tsconfig.scripts.json scripts/generate-aaradhane.ts "${args[@]}"
+
+      - name: Summary
+        env:
+          ADVANCE_CURRENT: ${{ github.event_name == 'schedule' || inputs.advance_current == true }}
+        run: |
+          {
+            echo "## Aaradhane publication"
+            echo ""
+            echo "- Year: $TARGET_YEAR"
+            echo "- Destination: Supabase Storage Data_flows/Aaradhane/years/$TARGET_YEAR.json"
+            echo "- Current pointer: $ADVANCE_CURRENT"
+          } >> "$GITHUB_STEP_SUMMARY"

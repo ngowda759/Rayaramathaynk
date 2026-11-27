@@ -44,8 +44,8 @@ Guru Aaradhanes are celebrated annually based on the Hindu lunar calendar. The c
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  2. Load Panchanga Data (data/panchanga/{year}/)                │
-│     - Pre-generated JSON files from Python script               │
+│  2. Load Panchanga Data (Storage years/{year}.json)             │
+│     - Validated yearly dataset from Supabase Storage            │
 │     - Contains tithi, paksha, masa for each day               │
 └─────────────────────────────────────────────────────────────────┘
                                 │

@@ -6,13 +6,11 @@ import {
   findDatesForLunarDate,
   getTithiDisplayName,
   getDateRangeString,
-  loadYearlyPanchanga,
-  hasYearlyPanchanga,
+  yearlyPanchangaFromDataset,
   DailyPanchanga,
   YearlyPanchanga,
 } from "@/lib/aaradhane/panchanga";
-import * as fs from "fs";
-import * as path from "path";
+import type { PanchangaYearDataset } from "@/lib/data-flows/schemas";
 
 describe("Panchanga Utilities", () => {
   // Create mock Panchanga data for testing
@@ -215,40 +213,45 @@ describe("Panchanga Utilities", () => {
     });
   });
 
-  describe("hasYearlyPanchanga", () => {
-    it("should return false for non-existent year", () => {
-      const result = hasYearlyPanchanga(2099);
-      expect(result).toBe(false);
+  describe("yearlyPanchangaFromDataset", () => {
+    const dataset = {
+      metadata: {
+        generator: "Rayara Panchanga Engine",
+        version: "1.0.0",
+        generated_at: "2026-01-01T00:00:00+05:30",
+        timezone: "Asia/Kolkata",
+        year: 2026,
+        count: 2,
+      },
+      year: 2026,
+      days: {
+        "2026-01-01": {
+          date: "2026-01-01",
+          tithi: { number: 10, name: "Shukla Dashami", paksha: "Shukla", start: "", end: "" },
+          masa: { number: 10, name: "Pauṣa", is_adhik: false, paksha: "Shukla" },
+          nakshatra: { number: 4, name: "Rohini", pada: 1, lord: "Moon", start: "", end: "" },
+        },
+        "2026-01-02": {
+          date: "2026-01-02",
+          tithi: { number: 11, name: "Shukla Ekadashi", paksha: "Shukla", start: "", end: "" },
+          masa: null,
+          nakshatra: { number: 5, name: "Mrigashira", pada: 1, lord: "Mars", start: "", end: "" },
+        },
+      },
+    } as unknown as PanchangaYearDataset;
+
+    it("maps every day with a lunar month into the generator's map", () => {
+      const map = yearlyPanchangaFromDataset(dataset);
+      expect(map).toBeInstanceOf(Map);
+      expect(map.has("2026-01-01")).toBe(true);
+      expect(map.get("2026-01-01")?.tithi.name).toBe("Shukla Dashami");
+      expect(map.get("2026-01-01")?.masa.name).toBe("Pauṣa");
     });
 
-    it("should return true for year with data", () => {
-      // 2026 should exist based on the directory structure
-      const result = hasYearlyPanchanga(2026);
-      // This may or may not be true depending on actual data
-      expect(typeof result).toBe("boolean");
-    });
-  });
-
-  describe("loadYearlyPanchanga", () => {
-    it("should throw error for non-existent year", () => {
-      expect(() => loadYearlyPanchanga(2099)).toThrow();
-    });
-
-    it("should load existing Panchanga data", () => {
-      try {
-        const data = loadYearlyPanchanga(2026);
-        expect(data).toBeInstanceOf(Map);
-        // If data exists, it should have entries
-        if (data.size > 0) {
-          const firstEntry = data.values().next().value;
-          expect(firstEntry).toHaveProperty("date");
-          expect(firstEntry).toHaveProperty("tithi");
-          expect(firstEntry).toHaveProperty("masa");
-        }
-      } catch {
-        // If 2026 data doesn't exist, this test is skipped
-        console.log("2026 Panchanga data not available, skipping load test");
-      }
+    it("skips days without masa data, matching the generator's expectation", () => {
+      const map = yearlyPanchangaFromDataset(dataset);
+      expect(map.has("2026-01-02")).toBe(false);
+      expect(map.size).toBe(1);
     });
   });
 });

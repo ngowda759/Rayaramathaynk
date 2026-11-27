@@ -1,6 +1,15 @@
 {
   "headers": [
     {
+      "source": "/api/panchanga/current",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate, proxy-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/data/panchanga/current.json",
       "headers": [
         {

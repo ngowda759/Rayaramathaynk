@@ -22,18 +22,6 @@ import { Button } from "@/components/ui/button";
 
 const DEFAULT_PLACEHOLDER = "—";
 
-type PanchangaShape = {
-  tithi?: string;
-  nakshatra?: string;
-  yoga?: string;
-  karana?: string;
-  sunrise?: string;
-  sunset?: string;
-  rahuKalam?: string;
-  gulikaKalam?: string;
-  masa?: string;
-};
-
 type LivePanchanga = {
   tithi?: string;
   nakshatra?: string;
@@ -47,13 +35,12 @@ type LivePanchanga = {
 };
 
 export default function Panchanga() {
-  const { homepage, loading } = useHomepage();
+  const { loading } = useHomepage();
 
-  const cms = (homepage?.panchanga ?? {}) as PanchangaShape;
-
-  const [live, setLive] = React.useState<LivePanchanga | null>(
-    null
-  );
+  const [live, setLive] = React.useState<LivePanchanga | null>(null);
+  const [liveStatus, setLiveStatus] = React.useState<
+    "loading" | "ok" | "unavailable"
+  >("loading");
 
   const [copied, setCopied] = React.useState(false);
   const [isSharing, setIsSharing] = React.useState(false);
@@ -66,56 +53,62 @@ export default function Panchanga() {
   React.useEffect(() => {
     async function load() {
       try {
-        const res = await fetch(
-          "/data/panchanga/current.json",
-          {
-            cache: "no-store",
-          }
-        );
-
+        const res = await fetch("/api/panchanga/current", {
+          cache: "no-store",
+        });
         const json = await res.json();
 
-        if (!json || json.error) return;
+        // Only an `ok` record is today's Panchanga. A `stale` record belongs to
+        // another Asia/Kolkata day and must not be presented as current.
+        if (!res.ok || json.status !== "ok" || !json.record) {
+          setLive(null);
+          setLiveStatus("unavailable");
+          return;
+        }
+        const record = json.record;
 
         setLive({
-          tithi: json.tithi?.name,
-          nakshatra: json.nakshatra?.name,
-          yoga: json.yoga?.name,
-          karana: json.karana?.name,
-          rahuKalam: json.rahu_kalam?.start
-            ? new Date(json.rahu_kalam.start).toLocaleTimeString("en-IN", {
+          tithi: record.tithi?.name,
+          nakshatra: record.nakshatra?.name,
+          yoga: record.yoga?.name,
+          karana: record.karana?.name,
+          rahuKalam: record.rahu_kalam?.start
+            ? new Date(record.rahu_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
-          gulikaKalam: json.gulika_kalam?.start
-            ? new Date(json.gulika_kalam.start).toLocaleTimeString("en-IN", {
+          gulikaKalam: record.gulika_kalam?.start
+            ? new Date(record.gulika_kalam.start).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
-          masa: json.masa?.name,
+          masa: record.masa?.name,
 
-          sunrise: json.sun?.sunrise
-            ? new Date(json.sun.sunrise).toLocaleTimeString("en-IN", {
+          sunrise: record.sun?.sunrise
+            ? new Date(record.sun.sunrise).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
 
-          sunset: json.sun?.sunset
-            ? new Date(json.sun.sunset).toLocaleTimeString("en-IN", {
+          sunset: record.sun?.sunset
+            ? new Date(record.sun.sunset).toLocaleTimeString("en-IN", {
                 hour: "2-digit",
                 minute: "2-digit",
                 timeZone: "Asia/Kolkata",
               })
             : undefined,
         });
+        setLiveStatus("ok");
       } catch (err) {
         console.error(err);
+        setLive(null);
+        setLiveStatus("unavailable");
       }
     }
 
@@ -217,54 +210,48 @@ export default function Panchanga() {
     return v;
   };
 
+  const hasLivePanchanga = liveStatus === "ok" && live !== null;
+
   const items = [
     {
       title: "Tithi",
-      value: getValue(live?.tithi ?? cms.tithi),
+      value: getValue(live?.tithi),
       icon: MoonStar,
       color: "from-violet-500 to-purple-600",
     },
     {
       title: "Nakshatra",
-      value: getValue(live?.nakshatra ?? cms.nakshatra),
+      value: getValue(live?.nakshatra),
       icon: CalendarDays,
       color: "from-amber-500 to-orange-500",
     },
     {
       title: "Sunrise",
-      value: getValue(
-        live?.sunrise ??
-          cms.sunrise ??
-          homepage?.morningOpen
-      ),
+      value: getValue(live?.sunrise),
       icon: Sunrise,
       color: "from-orange-500 to-yellow-500",
     },
     {
       title: "Sunset",
-      value: getValue(
-        live?.sunset ??
-          cms.sunset ??
-          homepage?.eveningClose
-      ),
+      value: getValue(live?.sunset),
       icon: Sunset,
       color: "from-sky-500 to-indigo-600",
     },
     {
       title: "Rahu Kala",
-      value: getValue(live?.rahuKalam ?? cms.rahuKalam),
+      value: getValue(live?.rahuKalam),
       icon: Clock,
       color: "from-red-500 to-rose-600",
     },
     {
       title: "Gulika Kala",
-      value: getValue(live?.gulikaKalam ?? cms.gulikaKalam),
+      value: getValue(live?.gulikaKalam),
       icon: Clock,
       color: "from-emerald-500 to-teal-600",
     },
     {
       title: "Masa",
-      value: getValue(live?.masa ?? cms.masa),
+      value: getValue(live?.masa),
       icon: Flame,
       color: "from-pink-500 to-rose-600",
     },
@@ -299,13 +286,24 @@ export default function Panchanga() {
             Daily Hindu calendar information for devotees.
           </p>
 
+          {liveStatus !== "ok" && (
+            <p
+              className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              role="status"
+            >
+              {liveStatus === "loading"
+                ? "Loading today's live Panchanga..."
+                : "Today's live Panchanga is unavailable. Please check back shortly."}
+            </p>
+          )}
+
           {/* Action Buttons */}
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button
               variant="outline"
               size="sm"
               onClick={handleSharePanchanga}
-              disabled={isSharing}
+              disabled={isSharing || !hasLivePanchanga}
               className="gap-2"
             >
               {isSharing ? (
@@ -320,6 +318,7 @@ export default function Panchanga() {
               variant="outline"
               size="sm"
               onClick={handleCopyPanchanga}
+              disabled={!hasLivePanchanga}
               className="gap-2"
             >
               {copied ? (
