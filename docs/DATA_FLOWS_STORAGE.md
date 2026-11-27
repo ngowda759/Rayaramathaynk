@@ -114,7 +114,9 @@ never written before the daily record has been verified.
 1. Validates the complete dataset.
 2. Refuses to overwrite an existing yearly dataset that is invalid.
 3. If a valid previous dataset exists and differs, writes it to
-   `snapshots/YYYY/<generated-at>.json` first.
+   `snapshots/YYYY/<generated-at>.json` first. An existing snapshot must be
+   readable and identical to that previous dataset; otherwise publication stops
+   before the yearly object is replaced.
 4. Writes the new yearly dataset and verifies it.
 5. Advances `current.json` only when `advanceCurrent: true` is passed.
 

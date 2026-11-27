@@ -113,6 +113,46 @@ describe("Aaradhane publisher", () => {
     expect(storage.objects.get(aaradhaneYearPath(YEAR))).toBe(before);
   });
 
+  it("refuses to replace a dataset when the snapshot cannot be read", async () => {
+    const storage = new MemoryStorage();
+    const first = aaradhaneDataset(YEAR, raghavendraEvents(YEAR));
+    storage.seed(aaradhaneYearPath(YEAR), first);
+    const before = storage.objects.get(aaradhaneYearPath(YEAR));
+    storage.readFailures.add(
+      aaradhaneSnapshotPath(YEAR, first.metadata.generated_at)
+    );
+
+    await expect(
+      publishAaradhaneYearDataset(
+        storage,
+        aaradhaneDataset(YEAR, [...raghavendraEvents(YEAR), aaradhaneEvent(YEAR)])
+      )
+    ).rejects.toMatchObject({ step: "snapshot" });
+
+    expect(storage.writes).toEqual([]);
+    expect(storage.objects.get(aaradhaneYearPath(YEAR))).toBe(before);
+  });
+
+  it("refuses to replace a dataset when an existing snapshot is invalid", async () => {
+    const storage = new MemoryStorage();
+    const first = aaradhaneDataset(YEAR, raghavendraEvents(YEAR));
+    storage.seed(aaradhaneYearPath(YEAR), first);
+    const before = storage.objects.get(aaradhaneYearPath(YEAR));
+    storage.seed(aaradhaneSnapshotPath(YEAR, first.metadata.generated_at), {
+      broken: true,
+    });
+
+    await expect(
+      publishAaradhaneYearDataset(
+        storage,
+        aaradhaneDataset(YEAR, [...raghavendraEvents(YEAR), aaradhaneEvent(YEAR)])
+      )
+    ).rejects.toMatchObject({ step: "snapshot" });
+
+    expect(storage.writes).toEqual([]);
+    expect(storage.objects.get(aaradhaneYearPath(YEAR))).toBe(before);
+  });
+
   it("does not rewrite an unchanged yearly dataset", async () => {
     const storage = new MemoryStorage();
     const dataset = aaradhaneDataset(YEAR, raghavendraEvents(YEAR));

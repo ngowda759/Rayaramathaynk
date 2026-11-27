@@ -151,7 +151,21 @@ export async function publishAaradhaneYearDataset(
     snapshotPath = aaradhaneSnapshotPath(year, existing.metadata.generated_at);
     const alreadyStored = await storage.getText(snapshotPath);
     if (!alreadyStored.ok || alreadyStored.text === null) {
+      if (!isStorageNotFound(alreadyStored)) {
+        throw new AaradhanePublishError(
+          "snapshot",
+          alreadyStored.error ?? `could not read ${snapshotPath}`
+        );
+      }
       await writeAndVerify(storage, snapshotPath, existing, "snapshot", attempts);
+    } else {
+      const parsed = parseJson(alreadyStored.text);
+      if (!parsed.ok || !jsonEqual(parsed.value, existing)) {
+        throw new AaradhanePublishError(
+          "snapshot",
+          `${snapshotPath} already exists with different or invalid content; refusing to overwrite it`
+        );
+      }
     }
   }
 
